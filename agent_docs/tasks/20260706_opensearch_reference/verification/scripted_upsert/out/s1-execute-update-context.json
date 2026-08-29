@@ -1,0 +1,3 @@
+{ "script": { "source": "ctx._source.docFreq += 1; return ctx._source.docFreq" },
+  "context": "update",
+  "context_setup": { "index": "su_verify", "document": { "docFreq": 5 } } }

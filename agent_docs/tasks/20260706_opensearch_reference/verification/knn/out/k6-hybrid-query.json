@@ -1,0 +1,7 @@
+{
+  "size": 5,
+  "query": { "hybrid": { "queries": [
+    { "match": { "text": { "query": "opensearch" } } },
+    { "knn":   { "embedding": { "vector": [0.11, 0.20, 0.30, 0.41], "k": 3 } } }
+  ] } }
+}

@@ -1,0 +1,26 @@
+{
+  "settings": {
+    "index": {
+      "knn": true,
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "refresh_interval": "10s"
+    }
+  },
+  "mappings": {
+    "properties": {
+      "text": { "type": "keyword" },
+      "roles": { "type": "keyword" },
+      "embedding": {
+        "type": "knn_vector",
+        "dimension": 4,
+        "space_type": "cosinesimil",
+        "method": {
+          "name": "hnsw",
+          "engine": "lucene",
+          "parameters": { "ef_construction": 100, "m": 16 }
+        }
+      }
+    }
+  }
+}

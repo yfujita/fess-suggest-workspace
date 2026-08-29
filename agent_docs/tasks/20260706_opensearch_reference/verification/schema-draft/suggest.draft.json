@@ -1,0 +1,10 @@
+{
+  "//_draft": "ステップ5 index settings ドラフト。現行 suggest.json を基点に index.knn:true を追加（embedding フィールド有効化時に必須・0004 K3）。shards/replicas は現行踏襲＋[要確認]TBD-05/MIG-17。knn を使わない段階では knn 行を外して現行と同一設定でよい。",
+  "index": {
+    "refresh_interval": "10s",
+    "number_of_shards": 1,
+    "number_of_replicas": 0,
+    "auto_expand_replicas": "0-1",
+    "knn": true
+  }
+}

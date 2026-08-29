@@ -1,0 +1,1 @@
+{"_index":"su_verify","_id":"s_null","_version":2,"_seq_no":3,"_primary_term":1,"found":true,"_source":{"text":"x","queryFreq":3,"docFreq":0,"userBoost":1.0,"@timestamp":1751856000000,"score":3.0,"fields":[],"tags":[],"roles":["user"],"languages":[],"kinds":[]}}

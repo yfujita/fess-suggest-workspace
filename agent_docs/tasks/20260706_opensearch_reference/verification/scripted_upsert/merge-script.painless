@@ -1,0 +1,55 @@
+// fess-suggest scripted_upsert 用マージスクリプト（検証用）
+// 写経元: SuggestItemSerializer#toUpdatedSource
+//   - queryFreq / docFreq : long 加算（null 安全・Number.longValue で型安全）
+//   - fields/tags/roles/languages/kinds/reading_* : 集合マージ（重複排除 = contains+add）
+//   - text / userBoost / @timestamp : 上書き
+//   - score : (queryFreq + docFreq) * userBoost で再計算（現行 toUpdatedSource と同一）
+// scripted_upsert:true のため、未存在 ID でも upsert:{} の空 doc に対して本スクリプトが走り Insert を構築する。
+//
+// params の構造（呼び出し側 = 将来の SuggestIndexWriter が組み立てる想定）:
+//   text(String), userBoost(double), timestamp(long/epoch_millis),
+//   queryFreq(long), docFreq(long),
+//   fields/tags/roles/languages/kinds(String[]), readings(Map<String,String[]>: "reading_0" -> [...])
+
+// --- 頻度: long 加算（null 安全・型安全）---
+long qf = params.queryFreq;
+long df = params.docFreq;
+if (ctx._source.queryFreq != null) { qf += ((Number) ctx._source.queryFreq).longValue(); }
+if (ctx._source.docFreq  != null) { df += ((Number) ctx._source.docFreq ).longValue(); }
+ctx._source.queryFreq = qf;
+ctx._source.docFreq = df;
+
+// --- スカラー上書き ---
+ctx._source.text = params.text;
+ctx._source.userBoost = params.userBoost;
+ctx._source['@timestamp'] = params.timestamp;
+
+// --- score 再計算（現行ロジック踏襲） ---
+ctx._source.score = (qf + df) * params.userBoost;
+
+// --- 集合マージ（重複排除）: 固定フィールド ---
+String[] listFields = new String[] {'fields', 'tags', 'roles', 'languages', 'kinds'};
+for (int i = 0; i < listFields.length; ++i) {
+  String f = listFields[i];
+  def newVals = params.get(f);
+  if (newVals == null) { continue; }
+  if (ctx._source[f] == null) { ctx._source[f] = new ArrayList(); }
+  for (int j = 0; j < newVals.length; ++j) {
+    def v = newVals[j];
+    if (!ctx._source[f].contains(v)) { ctx._source[f].add(v); }
+  }
+}
+
+// --- 集合マージ（重複排除）: 動的 reading_* ---
+if (params.readings != null) {
+  for (def entry : params.readings.entrySet()) {
+    String key = entry.getKey();
+    def newVals = entry.getValue();
+    if (newVals == null) { continue; }
+    if (ctx._source[key] == null) { ctx._source[key] = new ArrayList(); }
+    for (int j = 0; j < newVals.length; ++j) {
+      def v = newVals[j];
+      if (!ctx._source[key].contains(v)) { ctx._source[key].add(v); }
+    }
+  }
+}

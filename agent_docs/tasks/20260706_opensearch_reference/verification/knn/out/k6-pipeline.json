@@ -1,0 +1,9 @@
+{
+  "description": "hybrid keyword+vector normalization",
+  "phase_results_processors": [
+    { "normalization-processor": {
+        "normalization": { "technique": "min_max" },
+        "combination": { "technique": "arithmetic_mean", "parameters": { "weights": [0.3, 0.7] } }
+    } }
+  ]
+}

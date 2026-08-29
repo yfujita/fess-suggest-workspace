@@ -1,0 +1,38 @@
+{
+  "scripted_upsert": true,
+  "upsert": {},
+  "script": {
+    "lang": "painless",
+    "source": "// fess-suggest scripted_upsert 用マージスクリプト（検証用）\n// 写経元: SuggestItemSerializer#toUpdatedSource\n//   - queryFreq / docFreq : long 加算（null 安全・Number.longValue で型安全）\n//   - fields/tags/roles/languages/kinds/reading_* : 集合マージ（重複排除 = contains+add）\n//   - text / userBoost / @timestamp : 上書き\n//   - score : (queryFreq + docFreq) * userBoost で再計算（現行 toUpdatedSource と同一）\n// scripted_upsert:true のため、未存在 ID でも upsert:{} の空 doc に対して本スクリプトが走り Insert を構築する。\n//\n// params の構造（呼び出し側 = 将来の SuggestIndexWriter が組み立てる想定）:\n//   text(String), userBoost(double), timestamp(long/epoch_millis),\n//   queryFreq(long), docFreq(long),\n//   fields/tags/roles/languages/kinds(String[]), readings(Map<String,String[]>: \"reading_0\" -> [...])\n\n// --- 頻度: long 加算（null 安全・型安全）---\nlong qf = params.queryFreq;\nlong df = params.docFreq;\nif (ctx._source.queryFreq != null) { qf += ((Number) ctx._source.queryFreq).longValue(); }\nif (ctx._source.docFreq  != null) { df += ((Number) ctx._source.docFreq ).longValue(); }\nctx._source.queryFreq = qf;\nctx._source.docFreq = df;\n\n// --- スカラー上書き ---\nctx._source.text = params.text;\nctx._source.userBoost = params.userBoost;\nctx._source['@timestamp'] = params.timestamp;\n\n// --- score 再計算（現行ロジック踏襲） ---\nctx._source.score = (qf + df) * params.userBoost;\n\n// --- 集合マージ（重複排除）: 固定フィールド ---\nString[] listFields = new String[] {'fields', 'tags', 'roles', 'languages', 'kinds'};\nfor (int i = 0; i < listFields.length; ++i) {\n  String f = listFields[i];\n  def newVals = params.get(f);\n  if (newVals == null) { continue; }\n  if (ctx._source[f] == null) { ctx._source[f] = new ArrayList(); }\n  for (int j = 0; j < newVals.length; ++j) {\n    def v = newVals[j];\n    if (!ctx._source[f].contains(v)) { ctx._source[f].add(v); }\n  }\n}\n\n// --- 集合マージ（重複排除）: 動的 reading_* ---\nif (params.readings != null) {\n  for (def entry : params.readings.entrySet()) {\n    String key = entry.getKey();\n    def newVals = entry.getValue();\n    if (newVals == null) { continue; }\n    if (ctx._source[key] == null) { ctx._source[key] = new ArrayList(); }\n    for (int j = 0; j < newVals.length; ++j) {\n      def v = newVals[j];\n      if (!ctx._source[key].contains(v)) { ctx._source[key].add(v); }\n    }\n  }\n}",
+    "params": {
+      "text": "opensearch",
+      "userBoost": 2.0,
+      "timestamp": 1751856000000,
+      "queryFreq": 3,
+      "docFreq": 1,
+      "fields": [
+        "content",
+        "title"
+      ],
+      "tags": [
+        "blog"
+      ],
+      "roles": [
+        "user",
+        "admin"
+      ],
+      "languages": [
+        "en"
+      ],
+      "kinds": [
+        "query"
+      ],
+      "readings": {
+        "reading_0": [
+          "オープンサーチ",
+          "おーぷんさーち"
+        ]
+      }
+    }
+  }
+}

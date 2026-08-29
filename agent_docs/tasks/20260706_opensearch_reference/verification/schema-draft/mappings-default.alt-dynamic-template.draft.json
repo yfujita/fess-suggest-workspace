@@ -1,0 +1,60 @@
+{
+  "//_draft": "ステップ5 代替案B: 現行 dynamic_templates(string->keyword) を維持しつつ match を reading_* に限定。dynamic=true(既定)。reading_* を明示列挙せず可変数を許容したい場合の案。詳細は 0005-schema-draft.md §dynamic 設定。",
+  "dynamic_templates": [
+    {
+      "readings": {
+        "match": "reading_*",
+        "match_mapping_type": "string",
+        "mapping": {
+          "type": "keyword"
+        }
+      }
+    }
+  ],
+  "properties": {
+    "@timestamp": {
+      "type": "date",
+      "format": "epoch_millis"
+    },
+    "text": {
+      "type": "keyword"
+    },
+    "queryFreq": {
+      "type": "long"
+    },
+    "docFreq": {
+      "type": "long"
+    },
+    "userBoost": {
+      "type": "double"
+    },
+    "kinds": {
+      "type": "keyword"
+    },
+    "tags": {
+      "type": "keyword"
+    },
+    "roles": {
+      "type": "keyword"
+    },
+    "languages": {
+      "type": "keyword"
+    },
+    "fields": {
+      "type": "keyword"
+    },
+    "embedding": {
+      "type": "knn_vector",
+      "dimension": 4,
+      "space_type": "cosinesimil",
+      "method": {
+        "name": "hnsw",
+        "engine": "lucene",
+        "parameters": {
+          "ef_construction": 100,
+          "m": 16
+        }
+      }
+    }
+  }
+}

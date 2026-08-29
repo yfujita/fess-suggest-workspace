@@ -1,0 +1,6 @@
+{ "index": { "_id": "d1" } }
+{ "text": "opensearch", "reading_0": "オープンサーチ", "@timestamp": 1751769600000, "docFreq": 5, "queryFreq": 12, "userBoost": 1.0, "score": 0, "kinds": ["document"], "tags": ["blog"], "roles": ["guest", "user"], "languages": ["en"], "fields": ["content"] }
+{ "index": { "_id": "d2" } }
+{ "text": "opensearch dashboards", "reading_0": "オープンサーチ ダッシュボード", "@timestamp": 1751769600000, "docFreq": 3, "queryFreq": 8, "userBoost": 1.0, "score": 0, "kinds": ["document"], "tags": ["docs"], "roles": ["user"], "languages": ["en"], "fields": ["content", "title"] }
+{ "index": { "_id": "d3" } }
+{ "text": "検索エンジン", "reading_0": "けんさくえんじん", "reading_1": "kensaku enjin", "@timestamp": 1751769600000, "docFreq": 2, "queryFreq": 20, "userBoost": 1.5, "score": 0, "kinds": ["query"], "tags": ["ja"], "roles": ["user", "admin"], "languages": ["ja"], "fields": ["content"] }

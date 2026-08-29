@@ -1,0 +1,1 @@
+{"error":{"root_cause":[{"type":"settings_exception","reason":"unknown setting [index.knn.algo_param.ef_construction] did you mean [index.knn.algo_param.ef_search]?"}],"type":"settings_exception","reason":"unknown setting [index.knn.algo_param.ef_construction] did you mean [index.knn.algo_param.ef_search]?"},"status":400}

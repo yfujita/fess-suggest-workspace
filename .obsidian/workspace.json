@@ -1,0 +1,233 @@
+{
+  "main": {
+    "id": "cb9e13f7ea812220",
+    "type": "split",
+    "children": [
+      {
+        "id": "dfcf4c25a7e08c39",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "f9fa74f1cbdaa719",
+            "type": "leaf",
+            "state": {
+              "type": "empty",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "新規タブ"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "3489f84710449622",
+    "type": "split",
+    "children": [
+      {
+        "id": "abc9167c216badd1",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "41ed74f166621a96",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-folder-closed",
+              "title": "ファイルエクスプローラ"
+            }
+          },
+          {
+            "id": "087373dbe709972d",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "検索"
+            }
+          },
+          {
+            "id": "c17654a633db19d7",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-bookmark",
+              "title": "ブックマーク"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "a5d93d37454fec75",
+    "type": "split",
+    "children": [
+      {
+        "id": "691a8ea1d5338453",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "baa62382e01446de",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "バックリンク"
+            }
+          },
+          {
+            "id": "116abb1454339df1",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "アウトゴーイングリンク"
+            }
+          },
+          {
+            "id": "8bf1e1dea65548ad",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "タグ"
+            }
+          },
+          {
+            "id": "bf84e8ff84fdce9b",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "すべてのプロパティ"
+            }
+          },
+          {
+            "id": "6d9a25526b4df61a",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "アウトライン"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:クイックスイッチャーを開く": false,
+      "graph:グラフビューを開く": false,
+      "canvas:新規キャンバスを作成": false,
+      "daily-notes:今日のデイリーノートを開く": false,
+      "templates:テンプレートを挿入": false,
+      "command-palette:コマンドパレットを開く": false,
+      "bases:新規ベースを作成": false
+    }
+  },
+  "active": "f9fa74f1cbdaa719",
+  "lastOpenFiles": [
+    "README.md",
+    "agent_docs/tasks/20260822_implementation/0003-deviation-x3-l1-interim-state.md",
+    "agent_docs/tasks/20260822_implementation/0002-deviation-x1-builder-return-type.md",
+    "agent_docs/tasks/20260822_implementation/0004-phase-0-preparation.md",
+    "agent_docs/tasks/20260822_implementation/0002-phase-0-preparation.md",
+    "agent_docs/tasks/20260822_implementation/0003-deviation-x1-builder-return-type.md",
+    "modules/fess-suggest/target/surefire/surefire_0-20260824113127341_2tmp",
+    "modules/fess-suggest/target/surefire/surefire-20260824113127341_1tmp",
+    "modules/fess-suggest/target/surefire",
+    "modules/fess/target/fess-compress/css/admin/plugins/daterangepicker/daterangepicker.css",
+    "modules/fess/target/fess-compress/themes/bootstrap/assets/styles.css",
+    "modules/fess/target/fess-compress/css/admin/plugins/daterangepicker",
+    "modules/fess/target/fess-compress/themes/bootstrap/assets",
+    "modules/fess/target/fess-compress/css/admin/style.css",
+    "modules/fess/target/fess-compress/js/admin/searchlist.js",
+    "modules/fess/target/fess-compress/css/admin/plugins",
+    "modules/fess/target/tomcat-lib/org/eclipse/jdt/core/README.md",
+    "agent_docs/tasks/20260822_implementation/0001-work-plan.md",
+    "modules/fess-suggest/target/reports/apidocs/legal/jqueryUI.md",
+    "modules/fess-suggest/target/reports/apidocs/legal/jquery.md",
+    "modules/fess-suggest/target/reports/apidocs/resources/x.png",
+    "modules/fess-suggest/target/reports/apidocs/resources/glass.png",
+    "modules/fess-suggest/target/reports/apidocs/link.svg",
+    "modules/fess-suggest/target/reports/apidocs/copy.svg",
+    "modules/fess-suggest/target/site/jacoco/jacoco-resources/up.gif",
+    "modules/fess-suggest/target/site/jacoco/jacoco-resources/source.gif",
+    "modules/fess-suggest/target/site/jacoco/jacoco-resources/sort.gif",
+    "modules/fess-suggest/target/site/jacoco/jacoco-resources/session.gif",
+    "modules/fess-suggest/target/site/jacoco/jacoco-resources/report.gif",
+    "modules/fess-suggest/target/site/jacoco/jacoco-resources/redbar.gif",
+    "modules/fess/src/test/js/README.md",
+    "agent_docs/tasks/20260706_design_document/docs/for_human/README.md",
+    "agent_docs/tasks/20260706_design_document/docs/for_human/04-用語ミニ辞典.md",
+    "agent_docs/tasks/20260706_design_document/docs/for_human/03-どうやって入れ替えるか.md",
+    "agent_docs/tasks/20260706_design_document/docs/for_human/02-新しい設計のかたち.md",
+    "agent_docs/tasks/20260706_design_document/docs/for_human/01-なぜ変えるのか.md",
+    "agent_docs/tasks/20260706_design_document/docs/opensearch-verification-reference.md",
+    "agent_docs/tasks/20260706_design_document/docs/improvement-proposal.md",
+    "agent_docs/tasks/20260706_design_document/docs/0004-corrections.md",
+    "agent_docs/tasks/20260706_design_document/docs/0003-migration-ops-design.md",
+    "agent_docs/tasks/20260706_design_document/docs/0002-datamodel-design.md",
+    "agent_docs/tasks/20260706_design_document/docs/0001-api-design.md",
+    "agent_docs/tasks/20260706_design_document/docs/0000-design-overview.md",
+    "agent_docs/tasks/20260822_implementation/docs/for_human/README.md",
+    "agent_docs/tasks/20260822_implementation/docs/for_human/04-用語ミニ辞典.md",
+    "agent_docs/tasks/20260822_implementation/docs/for_human/03-どうやって入れ替えるか.md"
+  ]
+}

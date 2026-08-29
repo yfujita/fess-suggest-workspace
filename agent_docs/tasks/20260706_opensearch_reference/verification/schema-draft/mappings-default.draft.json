@@ -1,0 +1,60 @@
+{
+  "//_draft": "20260706_opensearch_reference ステップ5 新スキーマ mapping ドラフト（案A: dynamic=strict）。本タスクでは実ファイル(modules/.../mappings-default.json)は差し替えない。凡例 [事実]/[提案]/[要確認] は 0005-schema-draft.md 参照。",
+  "dynamic": "strict",
+  "properties": {
+    "@timestamp": {
+      "type": "date",
+      "format": "epoch_millis"
+    },
+    "text": {
+      "type": "keyword"
+    },
+    "queryFreq": {
+      "type": "long"
+    },
+    "docFreq": {
+      "type": "long"
+    },
+    "userBoost": {
+      "type": "double"
+    },
+    "kinds": {
+      "type": "keyword"
+    },
+    "tags": {
+      "type": "keyword"
+    },
+    "roles": {
+      "type": "keyword"
+    },
+    "languages": {
+      "type": "keyword"
+    },
+    "fields": {
+      "type": "keyword"
+    },
+    "reading_0": { "type": "keyword" },
+    "reading_1": { "type": "keyword" },
+    "reading_2": { "type": "keyword" },
+    "reading_3": { "type": "keyword" },
+    "reading_4": { "type": "keyword" },
+    "reading_5": { "type": "keyword" },
+    "reading_6": { "type": "keyword" },
+    "reading_7": { "type": "keyword" },
+    "reading_8": { "type": "keyword" },
+    "reading_9": { "type": "keyword" },
+    "embedding": {
+      "type": "knn_vector",
+      "dimension": 4,
+      "space_type": "cosinesimil",
+      "method": {
+        "name": "hnsw",
+        "engine": "lucene",
+        "parameters": {
+          "ef_construction": 100,
+          "m": 16
+        }
+      }
+    }
+  }
+}
