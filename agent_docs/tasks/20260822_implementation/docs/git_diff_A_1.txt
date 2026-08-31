@@ -1,0 +1,129 @@
+diff --git a/src/main/java/org/codelibs/fess/helper/SuggestHelper.java b/src/main/java/org/codelibs/fess/helper/SuggestHelper.java
+index 819582027..cc559faf0 100644
+--- a/src/main/java/org/codelibs/fess/helper/SuggestHelper.java
++++ b/src/main/java/org/codelibs/fess/helper/SuggestHelper.java
+@@ -425,6 +425,12 @@ public class SuggestHelper {
+ 
+     /**
+      * Deletes all elevate words from the suggest index.
++     * <p>
++     * Each word is normalized the same way as {@link #addElevateWord} before deletion so that
++     * the deletion targets the same document {@code _id} that the add path would have used. If
++     * normalization changes the word, the raw (un-normalized) value is also deleted; see
++     * {@link #deleteElevateWord} for the rationale.
++     * </p>
+      *
+      * @param apply true to apply the changes immediately.
+      */
+@@ -435,24 +441,55 @@ public class SuggestHelper {
+         });
+ 
+         for (final ElevateWord elevateWord : list) {
+-            suggester.indexer().deleteElevateWord(elevateWord.getSuggestWord(), apply);
++            final String rawWord = elevateWord.getSuggestWord();
++            final String normalizedWord = normalizeSeparators(rawWord);
++            suggester.indexer().deleteElevateWord(normalizedWord, apply);
++            if (!normalizedWord.equals(rawWord)) {
++                // Migration-period cleanup: binaries prior to this change indexed elevate words
++                // under the raw (un-normalized) word as the document id. Deleting a non-existent
++                // id is a no-op, so issuing this extra delete is safe.
++                suggester.indexer().deleteElevateWord(rawWord, apply);
++            }
+         }
+         refresh();
+     }
+ 
+     /**
+      * Deletes a specific elevate word from the suggest index.
++     * <p>
++     * The word is normalized the same way as {@link #addElevateWord} before deletion so that
++     * the same document {@code _id} used to add the word is used to delete it. If the
++     * normalization changes the word, the raw (un-normalized) value is also deleted; this is a
++     * migration-period cleanup for documents that binaries prior to this change may have indexed
++     * under the raw key. Deleting a non-existent id is a no-op, so issuing this extra delete is
++     * safe.
++     * </p>
+      *
+      * @param word  The elevate word to delete.
+      * @param apply true to apply the changes immediately.
+      */
+     public void deleteElevateWord(final String word, final boolean apply) {
+-        suggester.indexer().deleteElevateWord(word, apply);
++        final String normalizedWord = normalizeSeparators(word);
++        suggester.indexer().deleteElevateWord(normalizedWord, apply);
++        if (!normalizedWord.equals(word)) {
++            // Migration-period cleanup: binaries prior to this change indexed elevate words under
++            // the raw (un-normalized) word as the document id. Deleting a non-existent id is a
++            // no-op, so issuing this extra delete is safe.
++            suggester.indexer().deleteElevateWord(word, apply);
++        }
+         refresh();
+     }
+ 
+     /**
+      * Adds an elevate word to the suggest index.
++     * <p>
++     * This method only normalizes separator characters (full-width space to half-width,
++     * collapsing consecutive spaces, trimming edges, dropping empty tokens) for both the
++     * word and its readings. It does <strong>not</strong> reconcile the number of reading
++     * tokens with the number of words in {@code word}; that reconciliation (padding missing
++     * readings, truncating excess ones) is the responsibility of the suggest library
++     * (e.g. {@code ElevateWord#toSuggestItem} / the {@code SuggestItem} constructor).
++     * </p>
+      *
+      * @param word        The elevate word.
+      * @param reading     The reading of the word.
+@@ -463,12 +500,11 @@ public class SuggestHelper {
+      */
+     public void addElevateWord(final String word, final String reading, final String[] tags, final String[] permissions, final Float boost,
+             final boolean apply) {
+-        final String[] readings;
+-        if (StringUtil.isBlank(reading)) {
+-            readings = word.replace("　", TEXT_SEP).replaceAll(TEXT_SEP + "+", TEXT_SEP).split(TEXT_SEP);
+-        } else {
+-            readings = reading.replace("　", TEXT_SEP).replaceAll(TEXT_SEP + "+", TEXT_SEP).split(TEXT_SEP);
+-        }
++        final String normalizedWord = normalizeSeparators(word);
++
++        final String readingSource = StringUtil.isBlank(reading) ? word : reading;
++        final List<String> readingList = new ArrayList<>();
++        split(normalizeSeparators(readingSource), TEXT_SEP).of(stream -> stream.filter(StringUtil::isNotBlank).forEach(readingList::add));
+ 
+         final List<String> labelList = new ArrayList<>();
+         if (tags != null) {
+@@ -480,12 +516,34 @@ public class SuggestHelper {
+         }
+ 
+         suggester.indexer()
+-                .addElevateWord(new org.codelibs.fess.suggest.entity.ElevateWord(word, boost, Arrays.asList(readings), contentFieldList,
++                .addElevateWord(new org.codelibs.fess.suggest.entity.ElevateWord(normalizedWord, boost, readingList, contentFieldList,
+                         labelList, roleList), apply);
+ 
+         refresh();
+     }
+ 
++    /**
++     * Normalizes separator characters in an elevate word or one of its reading tokens.
++     * <p>
++     * Full-width spaces are converted to half-width, consecutive spaces are collapsed into one,
++     * and the leading/trailing edges are trimmed. Without the trim, an input such as
++     * {@code " test"} would leave an empty token at the start of the split result once it is
++     * later filtered.
++     * </p>
++     * <p>
++     * This method is shared by {@link #addElevateWord}, {@link #deleteElevateWord} and
++     * {@link #deleteAllElevateWord} because the elevate word suggest document {@code _id} is
++     * derived from the (normalized) word text; the add and delete paths must normalize the same
++     * way or they end up targeting different document ids for the same logical word.
++     * </p>
++     *
++     * @param text the word or reading text to normalize.
++     * @return the normalized text.
++     */
++    protected String normalizeSeparators(final String text) {
++        return text.replace("　", TEXT_SEP).replaceAll(TEXT_SEP + "+", TEXT_SEP).trim();
++    }
++
+     /**
+      * Deletes all bad words from the suggest index.
+      */

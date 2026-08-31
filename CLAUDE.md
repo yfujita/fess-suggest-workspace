@@ -50,3 +50,7 @@
 - 技術的調査: tech-architect
 - コード実装: code-implementer
 - ドキュメント作成: doc-writer
+
+## 制約
+
+- 明確な指示がなければ変更実施後にgit commitを行わないこと。

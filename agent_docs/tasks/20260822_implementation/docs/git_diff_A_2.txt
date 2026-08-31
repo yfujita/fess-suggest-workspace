@@ -1,0 +1,392 @@
+diff --git a/src/main/java/org/codelibs/fess/exec/SuggestCreator.java b/src/main/java/org/codelibs/fess/exec/SuggestCreator.java
+index 1b6f82924..01591ab9c 100644
+--- a/src/main/java/org/codelibs/fess/exec/SuggestCreator.java
++++ b/src/main/java/org/codelibs/fess/exec/SuggestCreator.java
+@@ -252,10 +252,13 @@ public class SuggestCreator {
+         suggestHelper.suggester().createNextIndex();
+ 
+         logger.info("Storing all bad words.");
+-        suggestHelper.storeAllBadWords(true);
++        // Rebuild-only entry point: isolates rows that fail to store instead of aborting the
++        // rebuild. The failure count is discarded here; folding it into exitCode is done by A-3.
++        suggestHelper.storeAllBadWordsForRebuild();
+ 
+         logger.info("Storing all elevate words.");
+-        suggestHelper.storeAllElevateWords(true);
++        // Same isolation as above; see storeAllBadWordsForRebuild.
++        suggestHelper.storeAllElevateWordsForRebuild();
+ 
+         final AtomicInteger exitCode = new AtomicInteger(0);
+ 
+diff --git a/src/main/java/org/codelibs/fess/helper/SuggestHelper.java b/src/main/java/org/codelibs/fess/helper/SuggestHelper.java
+index cc559faf0..56514c9b3 100644
+--- a/src/main/java/org/codelibs/fess/helper/SuggestHelper.java
++++ b/src/main/java/org/codelibs/fess/helper/SuggestHelper.java
+@@ -405,64 +405,98 @@ public class SuggestHelper {
+ 
+     /**
+      * Stores all elevate words in the suggest index.
++     * <p>
++     * This method fails fast: if adding any word throws, the exception propagates to the caller
++     * and the remaining words are not processed. This is deliberate — the admin screen and API
++     * callers (for example {@code AdminElevatewordAction#update()} and
++     * {@code ApiAdminElevatewordAction#put$setting()}) turn a propagated exception into a
++     * validation error shown to the operator, which is their only way to notice a broken row.
++     * Isolating per-row failures here would silently take that signal away from them. The
++     * rebuild path that needs isolation instead calls {@link #storeAllElevateWordsForRebuild()}.
++     * </p>
+      *
+      * @param apply true to apply the changes immediately.
+      */
+     public void storeAllElevateWords(final boolean apply) {
+-        deleteAllElevateWord(apply);
+-
+-        final List<ElevateWord> list = ComponentUtil.getComponent(ElevateWordBhv.class).selectList(cb -> {
+-            cb.query().matchAll();
+-            cb.fetchFirst(ComponentUtil.getFessConfig().getPageElevateWordMaxFetchSizeAsInteger());
+-        });
+-
+-        for (final ElevateWord elevateWord : list) {
+-            addElevateWord(elevateWord.getSuggestWord(), elevateWord.getReading(), elevateWord.getLabelTypeValues(),
+-                    elevateWord.getPermissions(), elevateWord.getBoost(), apply);
+-        }
+-        refresh();
++        storeAllElevateWordsInternal(apply, null); // null = no per-row isolation; exceptions propagate
+     }
+ 
+     /**
+      * Deletes all elevate words from the suggest index.
+      * <p>
+      * Each word is normalized the same way as {@link #addElevateWord} before deletion so that
+-     * the deletion targets the same document {@code _id} that the add path would have used. If
+-     * normalization changes the word, the raw (un-normalized) value is also deleted; see
+-     * {@link #deleteElevateWord} for the rationale.
++     * the deletion targets the same ids that the add path would have written. If normalization
++     * changes the word, the raw value is deleted as well; see {@link #deleteElevateWord} for what
++     * that extra deletion does and why it cannot remove a live entry.
++     * </p>
++     * <p>
++     * A backup restored through a raw {@code /_bulk} request (see {@code AdminBackupAction})
++     * bypasses the validation the admin screen and API normally enforce, so it can leave a row
++     * with a blank {@code suggestWord}. {@code ElevateWord#getSuggestWord()} — implemented in the
++     * generated {@code BsElevateWord} — converts that blank value to {@code null} via
++     * {@code convertEmptyToNull}, and {@link #normalizeSeparators} then throws a
++     * {@code NullPointerException} on the {@code null} argument. Note that
++     * {@code normalizeSeparators("")} itself does not throw; it returns {@code ""}.
++     * </p>
++     * <p>
++     * This method fails fast: such a row's exception propagates to the caller instead of being
++     * isolated, for the same reason as {@link #storeAllElevateWords}, which calls this method
++     * before its own add phase. The rebuild path that needs per-row isolation instead calls
++     * {@link #storeAllElevateWordsForRebuild()}.
+      * </p>
+      *
+      * @param apply true to apply the changes immediately.
+      */
+     public void deleteAllElevateWord(final boolean apply) {
+-        final List<ElevateWord> list = ComponentUtil.getComponent(ElevateWordBhv.class).selectList(cb -> {
+-            cb.query().matchAll();
+-            cb.fetchFirst(ComponentUtil.getFessConfig().getPageElevateWordMaxFetchSizeAsInteger());
+-        });
++        deleteAllElevateWordInternal(apply, null); // null = no per-row isolation; exceptions propagate
++    }
+ 
+-        for (final ElevateWord elevateWord : list) {
+-            final String rawWord = elevateWord.getSuggestWord();
+-            final String normalizedWord = normalizeSeparators(rawWord);
+-            suggester.indexer().deleteElevateWord(normalizedWord, apply);
+-            if (!normalizedWord.equals(rawWord)) {
+-                // Migration-period cleanup: binaries prior to this change indexed elevate words
+-                // under the raw (un-normalized) word as the document id. Deleting a non-existent
+-                // id is a no-op, so issuing this extra delete is safe.
+-                suggester.indexer().deleteElevateWord(rawWord, apply);
+-            }
+-        }
+-        refresh();
++    /**
++     * Stores all elevate words in the suggest index for a full rebuild, isolating rows that fail
++     * instead of aborting the rebuild.
++     * <p>
++     * A backup is restored by replaying its tables through a raw {@code /_bulk} request, which
++     * bypasses the validation the admin screen and API normally enforce (see
++     * {@code AdminBackupAction}), so a row with a blank {@code suggestWord} or a missing
++     * {@code boost} can reach this method. Such a row is skipped — in both the delete phase this
++     * method runs first and its own add phase — rather than allowed to stop the rebuild from
++     * completing for every other row.
++     * </p>
++     * <p>
++     * <strong>Callers:</strong> this method exists only for
++     * {@code org.codelibs.fess.exec.SuggestCreator} to call. It cannot be package-private because
++     * {@code SuggestCreator} lives in a different package, so this constraint cannot be enforced
++     * by the type system; do not call it from the admin screen or API. Those callers must keep
++     * using {@link #storeAllElevateWords}, whose fail-fast behavior is what lets a propagated
++     * exception remain their only signal that a row is broken.
++     * </p>
++     *
++     * @return the number of rows that failed, deduplicated by row id ({@code getId()}): a single
++     *         invalid row that fails in both the delete phase and the add phase is still counted
++     *         once, because both phases share the same set of failed ids.
++     */
++    public int storeAllElevateWordsForRebuild() {
++        final Set<String> failedIds = new HashSet<>();
++        storeAllElevateWordsInternal(true, failedIds); // apply is always true for a rebuild
++        return failedIds.size(); // deduplicated by row id, not a count of failed operations
+     }
+ 
+     /**
+      * Deletes a specific elevate word from the suggest index.
+      * <p>
+-     * The word is normalized the same way as {@link #addElevateWord} before deletion so that
+-     * the same document {@code _id} used to add the word is used to delete it. If the
+-     * normalization changes the word, the raw (un-normalized) value is also deleted; this is a
+-     * migration-period cleanup for documents that binaries prior to this change may have indexed
+-     * under the raw key. Deleting a non-existent id is a no-op, so issuing this extra delete is
+-     * safe.
++     * The word is normalized the same way as {@link #addElevateWord} before deletion. Both the
++     * suggest document {@code _id} and the elevate word settings entry are keyed by the word text,
++     * so unless the two paths normalize identically the deletion targets different keys than the
++     * add path wrote.
++     * </p>
++     * <p>
++     * When normalization changes the word, the raw value is deleted as well. This is a
++     * migration-period cleanup rather than a redundant call, and note that it removes a settings
++     * entry as well as a suggest document: binaries prior to this change passed the word on without
++     * separator normalization, and the suggest library's default normalizer keeps spaces as they
++     * are, so those entries are keyed by text that still carries the leading, trailing, duplicated
++     * or full-width spaces {@link #normalizeSeparators} strips. That is also why the extra deletion
++     * cannot remove a live entry: such a key can never equal one the add path writes.
+      * </p>
+      *
+      * @param word  The elevate word to delete.
+@@ -472,9 +506,9 @@ public class SuggestHelper {
+         final String normalizedWord = normalizeSeparators(word);
+         suggester.indexer().deleteElevateWord(normalizedWord, apply);
+         if (!normalizedWord.equals(word)) {
+-            // Migration-period cleanup: binaries prior to this change indexed elevate words under
+-            // the raw (un-normalized) word as the document id. Deleting a non-existent id is a
+-            // no-op, so issuing this extra delete is safe.
++            // Migration-period cleanup: this deletes the suggest document and the settings entry
++            // keyed by the raw text, which is what binaries prior to this change wrote. Keep it
++            // until the migration period is over; it is not a redundant repeat of the call above.
+             suggester.indexer().deleteElevateWord(word, apply);
+         }
+         refresh();
+@@ -486,9 +520,10 @@ public class SuggestHelper {
+      * This method only normalizes separator characters (full-width space to half-width,
+      * collapsing consecutive spaces, trimming edges, dropping empty tokens) for both the
+      * word and its readings. It does <strong>not</strong> reconcile the number of reading
+-     * tokens with the number of words in {@code word}; that reconciliation (padding missing
+-     * readings, truncating excess ones) is the responsibility of the suggest library
+-     * (e.g. {@code ElevateWord#toSuggestItem} / the {@code SuggestItem} constructor).
++     * tokens with the number of words in {@code word}. Mapping reading tokens onto word
++     * positions, including padding missing readings and truncating excess ones, is handled by
++     * {@code ElevateWord#toSuggestItem} in the suggest library; the {@code SuggestItem}
++     * constructor only enforces the resulting invariants.
+      * </p>
+      *
+      * @param word        The elevate word.
+@@ -544,8 +579,119 @@ public class SuggestHelper {
+         return text.replace("　", TEXT_SEP).replaceAll(TEXT_SEP + "+", TEXT_SEP).trim();
+     }
+ 
++    /**
++     * Shared implementation for {@link #storeAllElevateWords} and
++     * {@link #storeAllElevateWordsForRebuild}.
++     * <p>
++     * {@code failedIds == null} means no per-row isolation: a failure propagates immediately,
++     * which is the fail-fast behavior the public facade needs. {@code failedIds != null} means
++     * the caller wants isolation: a failure is caught, the row id is recorded, and the loop
++     * continues. Keeping both behaviors in one method, switched by this argument, is what keeps
++     * this class from having two copies of the same per-row logic that could drift apart.
++     * </p>
++     *
++     * @param apply     true to apply the changes immediately.
++     * @param failedIds {@code null} to fail fast, or a mutable set to collect the ids of rows
++     *                  that failed to be stored. The same instance is passed to the delete phase
++     *                  this method runs first, so a row that fails in both phases is recorded
++     *                  only once.
++     */
++    private void storeAllElevateWordsInternal(final boolean apply, final Set<String> failedIds) {
++        // Sharing the same Set with the delete phase is what makes a row that fails in both
++        // phases count once instead of twice.
++        deleteAllElevateWordInternal(apply, failedIds);
++
++        final List<ElevateWord> list = ComponentUtil.getComponent(ElevateWordBhv.class).selectList(cb -> {
++            cb.query().matchAll();
++            cb.fetchFirst(ComponentUtil.getFessConfig().getPageElevateWordMaxFetchSizeAsInteger());
++        });
++
++        for (final ElevateWord elevateWord : list) {
++            if (failedIds == null) {
++                addElevateWord(elevateWord.getSuggestWord(), elevateWord.getReading(), elevateWord.getLabelTypeValues(),
++                        elevateWord.getPermissions(), elevateWord.getBoost(), apply);
++                continue; // fail-fast: the try/catch below is never reached on this path
++            }
++            try {
++                addElevateWord(elevateWord.getSuggestWord(), elevateWord.getReading(), elevateWord.getLabelTypeValues(),
++                        elevateWord.getPermissions(), elevateWord.getBoost(), apply);
++            } catch (final Exception e) {
++                // Caught without narrowing the type: a null suggestWord fails inside
++                // normalizeSeparators, a null boost fails when it is unboxed to a primitive float,
++                // and a future SuggestItem invariant violation would surface here as well.
++                failedIds.add(elevateWord.getId());
++                logger.warn("Failed to store an elevate word: id={}, word={}", elevateWord.getId(), elevateWord.getSuggestWord(), e);
++            }
++        }
++        refresh(); // position/count unchanged from before this rework: loop-external, once at the end
++    }
++
++    /**
++     * Shared implementation for {@link #deleteAllElevateWord} and the delete phase of
++     * {@link #storeAllElevateWordsForRebuild}. See {@link #storeAllElevateWordsInternal} for the
++     * meaning of {@code failedIds}.
++     *
++     * @param apply     true to apply the changes immediately.
++     * @param failedIds {@code null} to fail fast, or a mutable set to collect the ids of rows
++     *                  that failed to be deleted.
++     */
++    private void deleteAllElevateWordInternal(final boolean apply, final Set<String> failedIds) {
++        final List<ElevateWord> list = ComponentUtil.getComponent(ElevateWordBhv.class).selectList(cb -> {
++            cb.query().matchAll();
++            cb.fetchFirst(ComponentUtil.getFessConfig().getPageElevateWordMaxFetchSizeAsInteger());
++        });
++
++        for (final ElevateWord elevateWord : list) {
++            if (failedIds == null) {
++                deleteOneElevateWordRow(elevateWord, apply);
++                continue; // fail-fast: the try/catch below is never reached on this path
++            }
++            try {
++                deleteOneElevateWordRow(elevateWord, apply);
++            } catch (final Exception e) {
++                // getSuggestWord() can be null for a blank row, so it is not used as the sole
++                // identifier here; getId() always identifies the row. The word is logged as well
++                // for readability when it is present.
++                failedIds.add(elevateWord.getId());
++                logger.warn("Failed to delete an elevate word: id={}, word={}", elevateWord.getId(), elevateWord.getSuggestWord(), e);
++            }
++        }
++        // Position/count unchanged from before this rework: loop-external, once at the end. When
++        // called from storeAllElevateWordsInternal this means refresh() still runs twice overall
++        // (here, then again at the end of the add phase) — that duplication predates this rework.
++        refresh();
++    }
++
++    /**
++     * Deletes a single elevate word row: normalizes the word the same way as
++     * {@link #addElevateWord} and, when normalization changes the word, also deletes the raw
++     * value as migration-period cleanup. Kept as its own method so both branches of
++     * {@link #deleteAllElevateWordInternal} (fail-fast and isolated) call one copy of this logic
++     * instead of two.
++     *
++     * @param elevateWord the row to delete.
++     * @param apply       true to apply the changes immediately.
++     */
++    private void deleteOneElevateWordRow(final ElevateWord elevateWord, final boolean apply) {
++        final String rawWord = elevateWord.getSuggestWord();
++        final String normalizedWord = normalizeSeparators(rawWord);
++        suggester.indexer().deleteElevateWord(normalizedWord, apply);
++        if (!normalizedWord.equals(rawWord)) {
++            // Migration-period cleanup for entries written before this change; see
++            // deleteElevateWord for the rationale. This is not a redundant repetition of the
++            // call above: it targets the ids derived from the raw text.
++            suggester.indexer().deleteElevateWord(rawWord, apply);
++        }
++    }
++
+     /**
+      * Deletes all bad words from the suggest index.
++     * <p>
++     * Unlike {@link #deleteAllElevateWord}, this is a single {@code deleteAll()} call against the
++     * settings rather than a per-row loop, so there is no row-level failure to isolate here: a
++     * failure means the delete operation itself failed and should propagate. This asymmetry with
++     * the elevate word delete phase is intentional, not an oversight.
++     * </p>
+      */
+     protected void deleteAllBadWords() {
+         suggester.settings().badword().deleteAll();
+@@ -553,18 +699,81 @@ public class SuggestHelper {
+ 
+     /**
+      * Stores all bad words in the suggest index.
++     * <p>
++     * This method fails fast: if adding any word throws, the exception propagates to the caller.
++     * This is deliberate for the same reason as {@link #storeAllElevateWords} — the admin screen
++     * and API callers turn a propagated exception into a validation error shown to the operator.
++     * The rebuild path that needs per-row isolation instead calls
++     * {@link #storeAllBadWordsForRebuild()}.
++     * </p>
+      *
+      * @param apply true to apply the changes immediately.
+      */
+     public void storeAllBadWords(final boolean apply) {
+-        deleteAllBadWords();
++        storeAllBadWordsInternal(apply, null); // null = no per-row isolation; exceptions propagate
++    }
++
++    /**
++     * Stores all bad words in the suggest index for a full rebuild, isolating rows that fail
++     * instead of aborting the rebuild.
++     * <p>
++     * A backup is restored by replaying its tables through a raw {@code /_bulk} request, which
++     * bypasses the validation the admin screen and API normally enforce (see
++     * {@code AdminBackupAction}), so a row can reach this method in a state that fails to be
++     * added. Such a row is skipped rather than allowed to stop the rebuild from completing for
++     * every other row.
++     * </p>
++     * <p>
++     * <strong>Callers:</strong> this method exists only for
++     * {@code org.codelibs.fess.exec.SuggestCreator} to call. It cannot be package-private because
++     * {@code SuggestCreator} lives in a different package, so this constraint cannot be enforced
++     * by the type system; do not call it from the admin screen or API. Those callers must keep
++     * using {@link #storeAllBadWords}, whose fail-fast behavior is what lets a propagated
++     * exception remain their only signal that a row is broken.
++     * </p>
++     *
++     * @return the number of rows that failed to be stored, deduplicated by row id
++     *         ({@code getId()}).
++     */
++    public int storeAllBadWordsForRebuild() {
++        final Set<String> failedIds = new HashSet<>();
++        storeAllBadWordsInternal(true, failedIds); // apply is always true for a rebuild
++        return failedIds.size(); // deduplicated by row id, not a count of failed operations
++    }
++
++    /**
++     * Shared implementation for {@link #storeAllBadWords} and
++     * {@link #storeAllBadWordsForRebuild}. See {@link #storeAllElevateWordsInternal} for the
++     * meaning of {@code failedIds}.
++     * <p>
++     * {@link #deleteAllBadWords()} below is never isolated, regardless of {@code failedIds}: it
++     * is a single {@code deleteAll()} call rather than a per-row loop, so an exception from it
++     * always means the delete operation itself failed, not that one row was invalid. This
++     * asymmetry with the elevate word delete phase is intentional; see
++     * {@link #deleteAllBadWords()}.
++     * </p>
++     *
++     * @param apply     true to apply the changes immediately.
++     * @param failedIds {@code null} to fail fast, or a mutable set to collect the ids of rows
++     *                  that failed to be stored.
++     */
++    private void storeAllBadWordsInternal(final boolean apply, final Set<String> failedIds) {
++        deleteAllBadWords(); // never isolated; see the note above
+         final List<BadWord> list = ComponentUtil.getComponent(BadWordBhv.class).selectList(cb -> {
+             cb.query().matchAll();
+             cb.fetchFirst(ComponentUtil.getFessConfig().getPageBadWordMaxFetchSizeAsInteger());
+         });
+         for (final BadWord badWord : list) {
+-            final String word = badWord.getSuggestWord();
+-            suggester.indexer().addBadWord(word, apply);
++            if (failedIds == null) {
++                suggester.indexer().addBadWord(badWord.getSuggestWord(), apply);
++                continue; // fail-fast: the try/catch below is never reached on this path
++            }
++            try {
++                suggester.indexer().addBadWord(badWord.getSuggestWord(), apply);
++            } catch (final Exception e) {
++                failedIds.add(badWord.getId());
++                logger.warn("Failed to store a bad word: id={}, word={}", badWord.getId(), badWord.getSuggestWord(), e);
++            }
+         }
+         refresh();
+     }
