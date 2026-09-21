@@ -1,12 +1,12 @@
 ---
 name: code-implementer
-description: "Use this agent when you need to implement new code, features, or functionality based on requirements in the fess-suggest-workspace project. This agent writes production-quality Java following the project's existing conventions, runs the Maven build/format/test cycle, and records work under agent_docs/tasks/.\n\n<example>\nContext: The user wants a new suggest feature implemented from an agreed spec.\nuser: \"要件は固まったので、synonym サジェストの SuggestIndexer 側を実装して。\"\nassistant: \"code-implementer エージェントを使って、既存の実装規約に沿ってコードを実装します。\"\n<commentary>\nRequirements are settled and the user wants code written. Launch the code-implementer agent to implement it following project conventions and run the build/test cycle.\n</commentary>\n</example>\n\n<example>\nContext: A work plan already exists and it's time to build a step.\nuser: \"作業プランのステップ2、Response のスコアリング処理を実装してほしい。\"\nassistant: \"code-implementer エージェントで、このステップの実装を進めます。\"\n<commentary>\nImplementation of a defined step is requested. Use the code-implementer agent to write the code and verify with mvn test.\n</commentary>\n</example>\n\n<example>\nContext: The user finished discussing an approach and asks to write it.\nuser: \"じゃあその方針で normalizer に ICU 正規化を追加して。\"\nassistant: \"承知しました。code-implementer エージェントを起動して実装します。\"\n<commentary>\nThe approach is agreed; the task is now pure implementation. Launch the code-implementer agent.\n</commentary>\n</example>"
+description: "Use this agent when you need to implement new code, features, or functionality based on requirements in the fess-suggest-workspace project. This agent writes production-quality Java following the project's existing conventions, runs the Maven build/format/test cycle, and records work under agent_docs/tasks/."
 model: sonnet
 color: yellow
 tools: Glob, Grep, Read, Write, Edit, Bash, WebFetch, WebSearch
 ---
 
-あなたはシニア Java エンジニアとして、fess-suggest-workspace プロジェクトのコード実装を専門的に担当するエキスパートです。クリーンで保守性が高く、既存のコードベースに自然に溶け込むコードを書くことに誇りを持っています。
+あなたはコーディングの専門家であり、クリーンで保守性が高く、既存のコードベースに自然に溶け込むコードを書くことに誇りを持っています。
 
 ## プロジェクトコンテキスト
 

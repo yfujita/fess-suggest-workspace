@@ -1,0 +1,1079 @@
+diff --git a/src/main/java/org/codelibs/fess/exec/SuggestCreator.java b/src/main/java/org/codelibs/fess/exec/SuggestCreator.java
+index 1b6f82924..535ef2e3e 100644
+--- a/src/main/java/org/codelibs/fess/exec/SuggestCreator.java
++++ b/src/main/java/org/codelibs/fess/exec/SuggestCreator.java
+@@ -64,6 +64,14 @@ public class SuggestCreator {
+ 
+     private static final Logger logger = LogManager.getLogger(SuggestCreator.class);
+ 
++    /**
++     * Lower bound of the G1 ratio check: the next generation must hold at least this fraction of
++     * the words the old generation held. Kept as a constant rather than a configuration key
++     * because the value is not based on measurement; making it configurable is deferred to the
++     * release that adds the other suggest index settings.
++     */
++    static final double MIN_NEXT_GENERATION_RATIO = 0.5;
++
+     /** The search engine client for interacting with OpenSearch. */
+     @Resource
+     public SearchEngineClient searchEngineClient;
+@@ -240,7 +248,20 @@ public class SuggestCreator {
+         return ret;
+     }
+ 
+-    private int create() {
++    /**
++     * Rebuilds the suggest index into a new generation and, if the guards allow it, switches that
++     * generation in.
++     * <p>
++     * Package-private rather than private so {@code SuggestCreatorTest} can drive this control
++     * flow directly: whether {@code switchIndex()} / {@code removeDisableIndices()} are reached is
++     * what the guards exist to decide, and that can only be observed by running the method (T-S1 /
++     * 0003 Sec.11.1). The method is not part of any API - {@link #process(Options)} is still its
++     * only production caller.
++     * </p>
++     *
++     * @return 0 when the rebuild finished cleanly and was published, non-zero otherwise.
++     */
++    int create() {
+         if (!ComponentUtil.getFessConfig().isSuggestDocuments() && !ComponentUtil.getFessConfig().isSuggestSearchLog()) {
+             logger.info("Skipped creating suggest index: both document and search log suggestions are disabled.");
+             return 0;
+@@ -248,16 +269,33 @@ public class SuggestCreator {
+ 
+         final SuggestHelper suggestHelper = ComponentUtil.getSuggestHelper();
+ 
++        // Read the old generation's size before createNextIndex() moves the update alias away.
++        // The search alias still points at the old generation for the whole of this method, so
++        // this is the one count that getAllWordsNum() answers correctly.
++        final long previousWordsNum = suggestHelper.getAllWordsNum();
++
+         logger.info("Creating new suggest index.");
+         suggestHelper.suggester().createNextIndex();
+ 
++        final AtomicInteger exitCode = new AtomicInteger(0);
++
+         logger.info("Storing all bad words.");
+-        suggestHelper.storeAllBadWords(true);
++        // Rebuild-only entry point: isolates rows that fail to store instead of aborting the
++        // rebuild, and returns how many rows failed (deduplicated by row id).
++        final int failedBadWords = suggestHelper.storeAllBadWordsForRebuild();
+ 
+         logger.info("Storing all elevate words.");
+-        suggestHelper.storeAllElevateWords(true);
+-
+-        final AtomicInteger exitCode = new AtomicInteger(0);
++        // Same isolation as above; see storeAllBadWordsForRebuild.
++        final int failedElevateWords = suggestHelper.storeAllElevateWordsForRebuild();
++
++        if (failedBadWords != 0 || failedElevateWords != 0) {
++            // A skipped row stays in the database, so this repeats on every rebuild until an
++            // operator fixes it. That is intended: a generation missing words must not be
++            // published. The counts are used as a boolean here, with no threshold.
++            logger.error("Failed to store words into the new suggest index: badWords={}, elevateWords={}", failedBadWords,
++                    failedElevateWords);
++            exitCode.set(1);
++        }
+ 
+         if (ComponentUtil.getFessConfig().isSuggestDocuments()) {
+             final CountDownLatch latch = new CountDownLatch(1);
+@@ -294,6 +332,27 @@ public class SuggestCreator {
+             }
+         }
+ 
++        // Counted through the update alias, which still points at the next generation here; the
++        // search alias would answer for the old one and make the size check a no-op.
++        final long nextWordsNum = suggestHelper.getNextGenerationWordsNum();
++
++        // Until these guards existed, create() switched over and dropped the old generation
++        // regardless of exitCode or of how much the new index actually held.
++        if (!canSwitchIndex(exitCode.get(), previousWordsNum, nextWordsNum)) {
++            if (!canSwitchAfterIngest(exitCode.get())) {
++                logger.error("Skipped switching the suggest index because the rebuild reported failures: exitCode={}", exitCode.get());
++                return exitCode.get();
++            }
++            logger.error("Skipped switching the suggest index because the new index is too small: previous={}, next={}, minRatio={}",
++                    previousWordsNum, nextWordsNum, MIN_NEXT_GENERATION_RATIO);
++            return 1;
++        }
++
++        // G2 (the smoke query against the next generation) is not run here. It needs
++        // SuggestIndexLifecycle.validateNext, which arrives with the fess-suggest update; this
++        // release only carries the fess-side safety net and cannot run a major migration, so its
++        // absence is not a gap. It is to be added when the fess-suggest update lands.
++
+         logger.info("Replacing new suggest index.");
+         suggestHelper.suggester().switchIndex();
+ 
+@@ -303,6 +362,55 @@ public class SuggestCreator {
+         return exitCode.get();
+     }
+ 
++    /**
++     * Decides whether the newly built generation may be switched in, combining G3
++     * ({@link #canSwitchAfterIngest}) and G1 ({@link #canSwitchByWordsNum}).
++     *
++     * @param exitCode         the accumulated exit code of the rebuild.
++     * @param previousWordsNum the word count of the old generation, read before the rebuild.
++     * @param nextWordsNum     the word count of the next generation.
++     * @return true when the new generation may be switched in.
++     */
++    static boolean canSwitchIndex(final int exitCode, final long previousWordsNum, final long nextWordsNum) {
++        return canSwitchAfterIngest(exitCode) && canSwitchByWordsNum(previousWordsNum, nextWordsNum);
++    }
++
++    /**
++     * G3: decides whether the rebuild finished cleanly enough to publish. The count of failures
++     * is read as a boolean, deliberately without a threshold — a full rebuild has no defensible
++     * number of words it may silently lose.
++     *
++     * @param exitCode the accumulated exit code of the rebuild.
++     * @return true when the new generation may be switched in.
++     */
++    static boolean canSwitchAfterIngest(final int exitCode) {
++        return exitCode == 0;
++    }
++
++    /**
++     * G1: decides whether the next generation is large enough to publish. It must hold at least
++     * one word, and at least {@link #MIN_NEXT_GENERATION_RATIO} of what the old generation held.
++     * <p>
++     * The ratio check is skipped when the old generation is empty. That is the first run: the
++     * search alias always exists by this point, because SuggestHelper creates the index on
++     * startup when there is none, so "no old generation" shows up as a count of zero rather than
++     * as a missing alias.
++     * </p>
++     *
++     * @param previousWordsNum the word count of the old generation, read before the rebuild.
++     * @param nextWordsNum     the word count of the next generation.
++     * @return true when the new generation may be switched in.
++     */
++    static boolean canSwitchByWordsNum(final long previousWordsNum, final long nextWordsNum) {
++        if (nextWordsNum == 0) {
++            return false;
++        }
++        if (previousWordsNum == 0) {
++            return true;
++        }
++        return nextWordsNum >= previousWordsNum * MIN_NEXT_GENERATION_RATIO;
++    }
++
+     private int purge(final LocalDateTime time) {
+         final SuggestHelper suggestHelper = ComponentUtil.getSuggestHelper();
+ 
+diff --git a/src/main/java/org/codelibs/fess/helper/SuggestHelper.java b/src/main/java/org/codelibs/fess/helper/SuggestHelper.java
+index 819582027..6bea6511e 100644
+--- a/src/main/java/org/codelibs/fess/helper/SuggestHelper.java
++++ b/src/main/java/org/codelibs/fess/helper/SuggestHelper.java
+@@ -82,6 +82,12 @@ public class SuggestHelper {
+     /** The separator for text content. */
+     protected static final String TEXT_SEP = " ";
+ 
++    /**
++     * Suffix of the update alias, mirroring {@code Suggester.getUpdateAlias}. Duplicated here
++     * because that method is private; see {@link #getNextGenerationWordsNum()}.
++     */
++    private static final String UPDATE_ALIAS_SUFFIX = ".update";
++
+     /** The suggester instance for handling suggest operations. */
+     protected Suggester suggester;
+ 
+@@ -167,6 +173,54 @@ public class SuggestHelper {
+         return suggester;
+     }
+ 
++    /**
++     * Adds an elevate word to the suggest index via {@code suggester.indexer()}.
++     * <p>
++     * This 1-line wrapper exists as a unit test seam: {@link org.codelibs.fess.suggest.index.SuggestIndexer}
++     * has no public constructor a test can use to build a stub, because its only public constructor
++     * calls {@code settings.badword().get(true)}, which builds a {@code BadWordSettings} whose
++     * {@code ArraySettings} constructor talks to a real cluster {@code Client}. Overriding this
++     * method lets a test capture the normalized {@code ElevateWord} this class builds without a
++     * running cluster. The calling convention (arguments, return value discarded) is unchanged.
++     * </p>
++     *
++     * @param elevateWord the elevate word to add.
++     * @param apply       true to apply the changes immediately.
++     */
++    protected void addElevateWordToIndex(final org.codelibs.fess.suggest.entity.ElevateWord elevateWord, final boolean apply) {
++        suggester.indexer().addElevateWord(elevateWord, apply);
++    }
++
++    /**
++     * Deletes an elevate word from the suggest index via {@code suggester.indexer()}.
++     * <p>
++     * Same rationale as {@link #addElevateWordToIndex}: overriding this method lets a test observe
++     * which keys {@link #deleteElevateWord} and {@link #deleteOneElevateWordRow} delete, without a
++     * running cluster.
++     * </p>
++     *
++     * @param word  the elevate word key to delete.
++     * @param apply true to apply the changes immediately.
++     */
++    protected void deleteElevateWordFromIndex(final String word, final boolean apply) {
++        suggester.indexer().deleteElevateWord(word, apply);
++    }
++
++    /**
++     * Adds a bad word to the suggest index via {@code suggester.indexer()}.
++     * <p>
++     * Same rationale as {@link #addElevateWordToIndex}: overriding this method lets a test observe
++     * the rows {@link #storeAllBadWordsForRebuild} (via {@link #storeAllBadWordsInternal}) attempts
++     * to add, without a running cluster.
++     * </p>
++     *
++     * @param badWord the bad word to add.
++     * @param apply   true to apply the changes immediately.
++     */
++    protected void addBadWordToIndex(final String badWord, final boolean apply) {
++        suggester.indexer().addBadWord(badWord, apply);
++    }
++
+     /**
+      * Stores search logs in the suggest index.
+      */
+@@ -340,6 +394,60 @@ public class SuggestHelper {
+         return suggester.getAllWordsNum();
+     }
+ 
++    /**
++     * Counts the words in the generation the update alias currently points at, which between
++     * {@link Suggester#createNextIndex()} and {@link Suggester#switchIndex()} is the next
++     * generation being built.
++     * <p>
++     * {@link #getAllWordsNum()} cannot be used for this: it goes through
++     * {@code Suggester.getNum()}, which searches the <em>search</em> alias, and the search alias
++     * still points at the old generation until {@code switchIndex()} runs. Counting the search
++     * alias before the switch would return the old generation's size for both sides of the G1
++     * ratio check, making that guard pass unconditionally.
++     * </p>
++     * <p>
++     * The update alias name is built here because {@code Suggester.getUpdateAlias} is private.
++     * This duplicates a fess-suggest naming rule on the fess side; it is temporary and goes away
++     * once the count moves to {@code SuggestIndexLifecycle.wordCountStats()}.
++     * </p>
++     * <p>
++     * Only {@code SuggestCreator} is meant to call this, between {@code createNextIndex()} and
++     * {@code switchIndex()}. It is public only because that caller lives in another package.
++     * Outside that window the update and search aliases point at the same index and this returns
++     * the same number as {@link #getAllWordsNum()}, which is the method to use instead.
++     * </p>
++     *
++     * @return the number of words visible through the update alias.
++     */
++    public long getNextGenerationWordsNum() {
++        return countWordsInIndex(suggester.getIndex() + UPDATE_ALIAS_SUFFIX);
++    }
++
++    /**
++     * Counts every word document reachable through the given index name or alias.
++     * <p>
++     * Split out of {@link #getNextGenerationWordsNum()} so that a test can check <em>which</em>
++     * name that method counts without a running cluster: which alias is counted is the whole of
++     * MO-27, and a regression to the search alias would otherwise be invisible until it silently
++     * turned the G1 guard into a no-op in production.
++     * </p>
++     *
++     * @param indexName the index name or alias to count through.
++     * @return the number of documents the given name resolves to.
++     */
++    protected long countWordsInIndex(final String indexName) {
++        return ComponentUtil.getSearchEngineClient()
++                .prepareSearch(indexName)
++                .setSize(0)
++                .setQuery(QueryBuilders.matchAllQuery())
++                .setTrackTotalHits(true)
++                .execute()
++                .actionGet(suggester.settings().getSearchTimeout())
++                .getHits()
++                .getTotalHits()
++                .value();
++    }
++
+     /**
+      * Gets the number of words from documents in the suggest index.
+      *
+@@ -405,54 +513,129 @@ public class SuggestHelper {
+ 
+     /**
+      * Stores all elevate words in the suggest index.
++     * <p>
++     * This method fails fast: if adding any word throws, the exception propagates to the caller
++     * and the remaining words are not processed. This is deliberate — it preserves the error
++     * propagation the admin screen and API callers already rely on. In the synchronous ones
++     * ({@code AdminElevatewordAction#update()} and {@code ApiAdminElevatewordAction#put$setting()})
++     * a propagated exception becomes a validation error shown to the operator, which is their only
++     * way to notice a broken row; the CSV upload paths run in a background task instead, where it
++     * surfaces as a {@code FessSystemException}. Isolating per-row failures here would change both.
++     * The rebuild path that needs isolation instead calls {@link #storeAllElevateWordsForRebuild()}.
++     * </p>
+      *
+      * @param apply true to apply the changes immediately.
+      */
+     public void storeAllElevateWords(final boolean apply) {
+-        deleteAllElevateWord(apply);
+-
+-        final List<ElevateWord> list = ComponentUtil.getComponent(ElevateWordBhv.class).selectList(cb -> {
+-            cb.query().matchAll();
+-            cb.fetchFirst(ComponentUtil.getFessConfig().getPageElevateWordMaxFetchSizeAsInteger());
+-        });
+-
+-        for (final ElevateWord elevateWord : list) {
+-            addElevateWord(elevateWord.getSuggestWord(), elevateWord.getReading(), elevateWord.getLabelTypeValues(),
+-                    elevateWord.getPermissions(), elevateWord.getBoost(), apply);
+-        }
+-        refresh();
++        storeAllElevateWordsInternal(apply, null); // null = no per-row isolation; exceptions propagate
+     }
+ 
+     /**
+      * Deletes all elevate words from the suggest index.
++     * <p>
++     * Each word is normalized the same way as {@link #addElevateWord} before deletion so that
++     * the deletion targets the same ids that the add path would have written. If normalization
++     * changes the word, the raw value is deleted as well; see {@link #deleteElevateWord} for what
++     * that extra deletion does and why it cannot remove a live entry.
++     * </p>
++     * <p>
++     * A backup restored through a raw {@code /_bulk} request (see {@code AdminBackupAction})
++     * bypasses the validation the admin screen and API normally enforce, so it can leave a row
++     * with a blank {@code suggestWord}. {@code ElevateWord#getSuggestWord()} — implemented in the
++     * generated {@code BsElevateWord} — converts that blank value to {@code null} via
++     * {@code convertEmptyToNull}, and {@link #normalizeSeparators} then throws a
++     * {@code NullPointerException} on the {@code null} argument. Note that
++     * {@code normalizeSeparators("")} itself does not throw; it returns {@code ""}.
++     * </p>
++     * <p>
++     * This method fails fast: such a row's exception propagates to the caller instead of being
++     * isolated, for the same reason as {@link #storeAllElevateWords}. Note that
++     * {@code storeAllElevateWords} does not call this method directly — both delegate to the same
++     * shared internal implementation, which runs the corresponding delete phase before adding
++     * rows. The rebuild path that needs per-row isolation instead calls
++     * {@link #storeAllElevateWordsForRebuild()}.
++     * </p>
+      *
+      * @param apply true to apply the changes immediately.
+      */
+     public void deleteAllElevateWord(final boolean apply) {
+-        final List<ElevateWord> list = ComponentUtil.getComponent(ElevateWordBhv.class).selectList(cb -> {
+-            cb.query().matchAll();
+-            cb.fetchFirst(ComponentUtil.getFessConfig().getPageElevateWordMaxFetchSizeAsInteger());
+-        });
++        deleteAllElevateWordInternal(apply, null); // null = no per-row isolation; exceptions propagate
++    }
+ 
+-        for (final ElevateWord elevateWord : list) {
+-            suggester.indexer().deleteElevateWord(elevateWord.getSuggestWord(), apply);
+-        }
+-        refresh();
++    /**
++     * Stores all elevate words in the suggest index for a full rebuild, isolating rows that fail
++     * instead of aborting the rebuild.
++     * <p>
++     * A backup is restored by replaying its tables through a raw {@code /_bulk} request, which
++     * bypasses the validation the admin screen and API normally enforce (see
++     * {@code AdminBackupAction}), so a row with a blank {@code suggestWord} or a missing
++     * {@code boost} can reach this method. Such a row is skipped — in both the delete phase this
++     * method runs first and its own add phase — rather than allowed to stop the rebuild from
++     * completing for every other row.
++     * </p>
++     * <p>
++     * <strong>Callers:</strong> this method exists only for
++     * {@code org.codelibs.fess.exec.SuggestCreator} to call. It cannot be package-private because
++     * {@code SuggestCreator} lives in a different package, so this constraint cannot be enforced
++     * by the type system; do not call it from the admin screen or API. Those callers must keep
++     * using {@link #storeAllElevateWords}, whose fail-fast behavior is what lets a propagated
++     * exception remain their only signal that a row is broken.
++     * </p>
++     *
++     * @return the number of rows that failed, deduplicated by row id ({@code getId()}): a single
++     *         invalid row that fails in both the delete phase and the add phase is still counted
++     *         once, because both phases share the same set of failed ids.
++     */
++    public int storeAllElevateWordsForRebuild() {
++        final Set<String> failedIds = new HashSet<>();
++        storeAllElevateWordsInternal(true, failedIds); // apply is always true for a rebuild
++        return failedIds.size(); // deduplicated by row id, not a count of failed operations
+     }
+ 
+     /**
+      * Deletes a specific elevate word from the suggest index.
++     * <p>
++     * The word is normalized the same way as {@link #addElevateWord} before deletion. Both the
++     * suggest document {@code _id} and the elevate word settings entry are keyed by the word text,
++     * so unless the two paths normalize identically the deletion targets different keys than the
++     * add path wrote.
++     * </p>
++     * <p>
++     * When normalization changes the word, the raw value is deleted as well. This is a
++     * migration-period cleanup rather than a redundant call, and note that it removes a settings
++     * entry as well as a suggest document: binaries prior to this change passed the word on without
++     * separator normalization, and the suggest library's default normalizer keeps spaces as they
++     * are, so those entries are keyed by text that still carries the leading, trailing, duplicated
++     * or full-width spaces {@link #normalizeSeparators} strips. That is also why the extra deletion
++     * cannot remove a live entry: such a key can never equal one the add path writes.
++     * </p>
+      *
+      * @param word  The elevate word to delete.
+      * @param apply true to apply the changes immediately.
+      */
+     public void deleteElevateWord(final String word, final boolean apply) {
+-        suggester.indexer().deleteElevateWord(word, apply);
++        final String normalizedWord = normalizeSeparators(word);
++        deleteElevateWordFromIndex(normalizedWord, apply);
++        if (!normalizedWord.equals(word)) {
++            // Migration-period cleanup: this deletes the suggest document and the settings entry
++            // keyed by the raw text, which is what binaries prior to this change wrote. Keep it
++            // until the migration period is over; it is not a redundant repeat of the call above.
++            deleteElevateWordFromIndex(word, apply);
++        }
+         refresh();
+     }
+ 
+     /**
+      * Adds an elevate word to the suggest index.
++     * <p>
++     * This method only normalizes separator characters (full-width space to half-width,
++     * collapsing consecutive spaces, trimming edges, dropping empty tokens) for both the
++     * word and its readings. It does <strong>not</strong> reconcile the number of reading
++     * tokens with the number of words in {@code word}. Mapping reading tokens onto word
++     * positions, including padding missing readings and truncating excess ones, is handled by
++     * {@code ElevateWord#toSuggestItem} in the suggest library; the {@code SuggestItem}
++     * constructor only enforces the resulting invariants.
++     * </p>
+      *
+      * @param word        The elevate word.
+      * @param reading     The reading of the word.
+@@ -463,12 +646,11 @@ public class SuggestHelper {
+      */
+     public void addElevateWord(final String word, final String reading, final String[] tags, final String[] permissions, final Float boost,
+             final boolean apply) {
+-        final String[] readings;
+-        if (StringUtil.isBlank(reading)) {
+-            readings = word.replace("　", TEXT_SEP).replaceAll(TEXT_SEP + "+", TEXT_SEP).split(TEXT_SEP);
+-        } else {
+-            readings = reading.replace("　", TEXT_SEP).replaceAll(TEXT_SEP + "+", TEXT_SEP).split(TEXT_SEP);
+-        }
++        final String normalizedWord = normalizeSeparators(word);
++
++        final String readingSource = StringUtil.isBlank(reading) ? word : reading;
++        final List<String> readingList = new ArrayList<>();
++        split(normalizeSeparators(readingSource), TEXT_SEP).of(stream -> stream.filter(StringUtil::isNotBlank).forEach(readingList::add));
+ 
+         final List<String> labelList = new ArrayList<>();
+         if (tags != null) {
+@@ -479,15 +661,180 @@ public class SuggestHelper {
+             Collections.addAll(roleList, permissions);
+         }
+ 
+-        suggester.indexer()
+-                .addElevateWord(new org.codelibs.fess.suggest.entity.ElevateWord(word, boost, Arrays.asList(readings), contentFieldList,
+-                        labelList, roleList), apply);
++        addElevateWordToIndex(
++                new org.codelibs.fess.suggest.entity.ElevateWord(normalizedWord, boost, readingList, contentFieldList, labelList, roleList),
++                apply);
++
++        refresh();
++    }
++
++    /**
++     * Normalizes separator characters in an elevate word or one of its reading tokens.
++     * <p>
++     * Full-width spaces are converted to half-width, consecutive spaces are collapsed into one,
++     * and the leading/trailing edges are trimmed. Without the trim, an input such as
++     * {@code " test"} would leave an empty token at the start of the split result once it is
++     * later filtered.
++     * </p>
++     * <p>
++     * This method is shared by {@link #addElevateWord}, {@link #deleteElevateWord} and
++     * {@link #deleteAllElevateWord} because the elevate word suggest document {@code _id} is
++     * derived from the (normalized) word text; the add and delete paths must normalize the same
++     * way or they end up targeting different document ids for the same logical word.
++     * </p>
++     *
++     * @param text the word or reading text to normalize.
++     * @return the normalized text.
++     */
++    protected String normalizeSeparators(final String text) {
++        return text.replace("　", TEXT_SEP).replaceAll(TEXT_SEP + "+", TEXT_SEP).trim();
++    }
++
++    /**
++     * Shared implementation for {@link #storeAllElevateWords} and
++     * {@link #storeAllElevateWordsForRebuild}.
++     * <p>
++     * {@code failedIds == null} means no per-row isolation: a failure propagates immediately,
++     * which is the fail-fast behavior the public facade needs. {@code failedIds != null} means
++     * the caller wants isolation: a failure is caught, the row id is recorded, and the loop
++     * continues. Keeping both behaviors in one method, switched by this argument, is what keeps
++     * this class from having two copies of the same per-row logic that could drift apart.
++     * </p>
++     *
++     * @param apply     true to apply the changes immediately.
++     * @param failedIds {@code null} to fail fast, or a mutable set to collect the ids of rows
++     *                  that failed to be stored. The same instance is passed to the delete phase
++     *                  this method runs first, so a row that fails in both phases is recorded
++     *                  only once.
++     */
++    private void storeAllElevateWordsInternal(final boolean apply, final Set<String> failedIds) {
++        // Sharing the same Set with the delete phase is what makes a row that fails in both
++        // phases count once instead of twice.
++        deleteAllElevateWordInternal(apply, failedIds);
++
++        final List<ElevateWord> list = ComponentUtil.getComponent(ElevateWordBhv.class).selectList(cb -> {
++            cb.query().matchAll();
++            cb.fetchFirst(ComponentUtil.getFessConfig().getPageElevateWordMaxFetchSizeAsInteger());
++        });
++
++        for (final ElevateWord elevateWord : list) {
++            if (failedIds == null) {
++                storeOneElevateWordRow(elevateWord, apply);
++                continue; // fail-fast: the try/catch below is never reached on this path
++            }
++            try {
++                storeOneElevateWordRow(elevateWord, apply);
++            } catch (final Exception e) {
++                // Caught without narrowing the type: a null suggestWord fails inside
++                // normalizeSeparators, a null boost fails when it is unboxed to a primitive float,
++                // and a future SuggestItem invariant violation would surface here as well.
++                failedIds.add(elevateWord.getId());
++                logger.warn("Failed to store an elevate word: id={}, word={}", elevateWord.getId(), elevateWord.getSuggestWord(), e);
++            }
++        }
++        refresh(); // position/count unchanged from before this rework: loop-external, once at the end
++    }
++
++    /**
++     * Stores a single elevate word row by unpacking it into the {@link #addElevateWord} arguments.
++     * Kept as its own method, mirroring {@link #deleteOneElevateWordRow}, so both branches of
++     * {@link #storeAllElevateWordsInternal} (fail-fast and isolated) call one copy of this
++     * six-argument call instead of two that could drift apart when the argument list changes.
++     *
++     * @param elevateWord the row to store.
++     * @param apply       true to apply the changes immediately.
++     */
++    private void storeOneElevateWordRow(final ElevateWord elevateWord, final boolean apply) {
++        addElevateWord(elevateWord.getSuggestWord(), elevateWord.getReading(), elevateWord.getLabelTypeValues(),
++                elevateWord.getPermissions(), elevateWord.getBoost(), apply);
++    }
++
++    /**
++     * Shared implementation for {@link #deleteAllElevateWord} and the delete phase of
++     * {@link #storeAllElevateWordsForRebuild}. See {@link #storeAllElevateWordsInternal} for the
++     * meaning of {@code failedIds}.
++     *
++     * @param apply     true to apply the changes immediately.
++     * @param failedIds {@code null} to fail fast, or a mutable set to collect the ids of rows
++     *                  that failed to be deleted.
++     */
++    private void deleteAllElevateWordInternal(final boolean apply, final Set<String> failedIds) {
++        final List<ElevateWord> list = ComponentUtil.getComponent(ElevateWordBhv.class).selectList(cb -> {
++            cb.query().matchAll();
++            cb.fetchFirst(ComponentUtil.getFessConfig().getPageElevateWordMaxFetchSizeAsInteger());
++        });
+ 
++        for (final ElevateWord elevateWord : list) {
++            if (failedIds == null) {
++                deleteOneElevateWordRow(elevateWord, apply, false);
++                continue; // fail-fast: the try/catch below is never reached on this path
++            }
++            try {
++                deleteOneElevateWordRow(elevateWord, apply, true);
++            } catch (final Exception e) {
++                // getSuggestWord() can be null for a blank row, so it is not used as the sole
++                // identifier here; getId() always identifies the row. The word is logged as well
++                // for readability when it is present.
++                failedIds.add(elevateWord.getId());
++                logger.warn("Failed to delete an elevate word: id={}, word={}", elevateWord.getId(), elevateWord.getSuggestWord(), e);
++            }
++        }
++        // Position/count unchanged from before this rework: loop-external, once at the end. When
++        // called from storeAllElevateWordsInternal this means refresh() still runs twice overall
++        // (here, then again at the end of the add phase) — that duplication predates this rework.
+         refresh();
+     }
+ 
++    /**
++     * Deletes a single elevate word row: normalizes the word the same way as
++     * {@link #addElevateWord} and, when normalization changes the word, also deletes the raw
++     * value as migration-period cleanup. Kept as its own method so both branches of
++     * {@link #deleteAllElevateWordInternal} (fail-fast and isolated) call one copy of this logic
++     * instead of two.
++     *
++     * @param elevateWord              the row to delete.
++     * @param apply                    true to apply the changes immediately.
++     * @param isolateCleanupFailure    true on the rebuild path, where a failure of the
++     *                                 migration-period cleanup delete is logged instead of
++     *                                 propagating; false on the fail-fast path.
++     */
++    private void deleteOneElevateWordRow(final ElevateWord elevateWord, final boolean apply, final boolean isolateCleanupFailure) {
++        final String rawWord = elevateWord.getSuggestWord();
++        final String normalizedWord = normalizeSeparators(rawWord);
++        deleteElevateWordFromIndex(normalizedWord, apply);
++        if (!normalizedWord.equals(rawWord)) {
++            // Migration-period cleanup for entries written before this change; see
++            // deleteElevateWord for the rationale. This is not a redundant repetition of the
++            // call above: it targets the ids derived from the raw text.
++            if (!isolateCleanupFailure) {
++                deleteElevateWordFromIndex(rawWord, apply);
++                return;
++            }
++            // On the rebuild path this failure is logged but not propagated, so the row is not
++            // recorded as failed and the generation switch is not blocked. This cleanup targets
++            // entries an older binary wrote; it says nothing about whether the row itself is
++            // valid, so it does not meet the "hold the generation back until an operator fixes
++            // the row" bar that the normalized-key delete above does. The failure surfaces from
++            // WordManagementOperations, where the settings delete sits outside its try block.
++            //
++            // The fail-fast path deliberately keeps propagating it: there the exception reaches
++            // the operator as a validation error, which is the only signal that path has.
++            try {
++                deleteElevateWordFromIndex(rawWord, apply);
++            } catch (final Exception e) {
++                logger.warn("Failed to clean up the raw-key elevate word entry: id={}, word={}", elevateWord.getId(), rawWord, e);
++            }
++        }
++    }
++
+     /**
+      * Deletes all bad words from the suggest index.
++     * <p>
++     * Unlike {@link #deleteAllElevateWord}, this is a single {@code deleteAll()} call against the
++     * settings rather than a per-row loop, so there is no row-level failure to isolate here: a
++     * failure means the delete operation itself failed and should propagate. This asymmetry with
++     * the elevate word delete phase is intentional, not an oversight.
++     * </p>
+      */
+     protected void deleteAllBadWords() {
+         suggester.settings().badword().deleteAll();
+@@ -495,18 +842,83 @@ public class SuggestHelper {
+ 
+     /**
+      * Stores all bad words in the suggest index.
++     * <p>
++     * This method fails fast: if adding any word throws, the exception propagates to the caller.
++     * This is deliberate for the same reason as {@link #storeAllElevateWords} — it preserves the
++     * error propagation the admin screen and API callers already rely on, which reaches the
++     * operator as a validation error from the synchronous callers
++     * ({@code AdminBadwordAction#update()} and {@code ApiAdminBadwordAction#put$setting()}) and as
++     * a {@code FessSystemException} from the background CSV upload paths. The rebuild path that
++     * needs per-row isolation instead calls {@link #storeAllBadWordsForRebuild()}.
++     * </p>
+      *
+      * @param apply true to apply the changes immediately.
+      */
+     public void storeAllBadWords(final boolean apply) {
+-        deleteAllBadWords();
++        storeAllBadWordsInternal(apply, null); // null = no per-row isolation; exceptions propagate
++    }
++
++    /**
++     * Stores all bad words in the suggest index for a full rebuild, isolating rows that fail
++     * instead of aborting the rebuild.
++     * <p>
++     * A backup is restored by replaying its tables through a raw {@code /_bulk} request, which
++     * bypasses the validation the admin screen and API normally enforce (see
++     * {@code AdminBackupAction}), so a row can reach this method in a state that fails to be
++     * added. Such a row is skipped rather than allowed to stop the rebuild from completing for
++     * every other row.
++     * </p>
++     * <p>
++     * <strong>Callers:</strong> this method exists only for
++     * {@code org.codelibs.fess.exec.SuggestCreator} to call. It cannot be package-private because
++     * {@code SuggestCreator} lives in a different package, so this constraint cannot be enforced
++     * by the type system; do not call it from the admin screen or API. Those callers must keep
++     * using {@link #storeAllBadWords}, whose fail-fast behavior is what lets a propagated
++     * exception remain their only signal that a row is broken.
++     * </p>
++     *
++     * @return the number of rows that failed to be stored, deduplicated by row id
++     *         ({@code getId()}).
++     */
++    public int storeAllBadWordsForRebuild() {
++        final Set<String> failedIds = new HashSet<>();
++        storeAllBadWordsInternal(true, failedIds); // apply is always true for a rebuild
++        return failedIds.size(); // deduplicated by row id, not a count of failed operations
++    }
++
++    /**
++     * Shared implementation for {@link #storeAllBadWords} and
++     * {@link #storeAllBadWordsForRebuild}. See {@link #storeAllElevateWordsInternal} for the
++     * meaning of {@code failedIds}.
++     * <p>
++     * {@link #deleteAllBadWords()} below is never isolated, regardless of {@code failedIds}: it
++     * is a single {@code deleteAll()} call rather than a per-row loop, so an exception from it
++     * always means the delete operation itself failed, not that one row was invalid. This
++     * asymmetry with the elevate word delete phase is intentional; see
++     * {@link #deleteAllBadWords()}.
++     * </p>
++     *
++     * @param apply     true to apply the changes immediately.
++     * @param failedIds {@code null} to fail fast, or a mutable set to collect the ids of rows
++     *                  that failed to be stored.
++     */
++    private void storeAllBadWordsInternal(final boolean apply, final Set<String> failedIds) {
++        deleteAllBadWords(); // never isolated; see the note above
+         final List<BadWord> list = ComponentUtil.getComponent(BadWordBhv.class).selectList(cb -> {
+             cb.query().matchAll();
+             cb.fetchFirst(ComponentUtil.getFessConfig().getPageBadWordMaxFetchSizeAsInteger());
+         });
+         for (final BadWord badWord : list) {
+-            final String word = badWord.getSuggestWord();
+-            suggester.indexer().addBadWord(word, apply);
++            if (failedIds == null) {
++                addBadWordToIndex(badWord.getSuggestWord(), apply);
++                continue; // fail-fast: the try/catch below is never reached on this path
++            }
++            try {
++                addBadWordToIndex(badWord.getSuggestWord(), apply);
++            } catch (final Exception e) {
++                failedIds.add(badWord.getId());
++                logger.warn("Failed to store a bad word: id={}, word={}", badWord.getId(), badWord.getSuggestWord(), e);
++            }
+         }
+         refresh();
+     }
+diff --git a/src/main/resources/suggest_indices/_aws/suggest_analyzer.json b/src/main/resources/suggest_indices/_aws/suggest_analyzer.json
+index 075a3c6fa..db636ecc6 100644
+--- a/src/main/resources/suggest_indices/_aws/suggest_analyzer.json
++++ b/src/main/resources/suggest_indices/_aws/suggest_analyzer.json
+@@ -2,7 +2,6 @@
+   "index": {
+     "refresh_interval": "1s",
+     "number_of_shards": 1,
+-    "number_of_replicas": 0,
+     "auto_expand_replicas": "0-1"
+   },
+   "analysis" : {
+diff --git a/src/main/resources/suggest_indices/_cloud/suggest_analyzer.json b/src/main/resources/suggest_indices/_cloud/suggest_analyzer.json
+index 6ae494199..8627eeedb 100644
+--- a/src/main/resources/suggest_indices/_cloud/suggest_analyzer.json
++++ b/src/main/resources/suggest_indices/_cloud/suggest_analyzer.json
+@@ -2,7 +2,6 @@
+   "index": {
+     "refresh_interval": "1s",
+     "number_of_shards": 1,
+-    "number_of_replicas": 0,
+     "auto_expand_replicas": "0-1"
+   },
+   "analysis" : {
+diff --git a/src/main/resources/suggest_indices/suggest_analyzer.json b/src/main/resources/suggest_indices/suggest_analyzer.json
+index 616449839..1f67a2385 100644
+--- a/src/main/resources/suggest_indices/suggest_analyzer.json
++++ b/src/main/resources/suggest_indices/suggest_analyzer.json
+@@ -2,7 +2,6 @@
+   "index": {
+     "refresh_interval": "1s",
+     "number_of_shards": 1,
+-    "number_of_replicas": 0,
+     "auto_expand_replicas": "0-1"
+   },
+   "analysis" : {
+diff --git a/src/test/java/org/codelibs/fess/exec/SuggestCreatorTest.java b/src/test/java/org/codelibs/fess/exec/SuggestCreatorTest.java
+index 571cde808..077eb0e62 100644
+--- a/src/test/java/org/codelibs/fess/exec/SuggestCreatorTest.java
++++ b/src/test/java/org/codelibs/fess/exec/SuggestCreatorTest.java
+@@ -16,13 +16,24 @@
+ package org.codelibs.fess.exec;
+ 
+ import java.io.File;
++import java.io.IOException;
+ import java.lang.reflect.Method;
++import java.nio.charset.StandardCharsets;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.function.Consumer;
+ 
+ import org.codelibs.core.io.FileUtil;
+ import org.codelibs.core.misc.DynamicProperties;
+ import org.codelibs.fess.crawler.client.FesenClient;
++import org.codelibs.fess.helper.SuggestHelper;
+ import org.codelibs.fess.helper.SystemHelper;
+ import org.codelibs.fess.mylasta.direction.FessConfig;
++import org.codelibs.fess.suggest.Suggester;
++import org.codelibs.fess.unit.ModulePaths;
++import org.codelibs.fess.unit.StubSuggester;
+ import org.codelibs.fess.unit.UnitFessTestCase;
+ import org.codelibs.fess.util.ComponentUtil;
+ import org.junit.jupiter.api.Test;
+@@ -281,6 +292,277 @@ public class SuggestCreatorTest extends UnitFessTestCase {
+         assertTrue(true);
+     }
+ 
++    // ---- T-S1 (先行版): exitCode != 0 must block the switch regardless of word counts ---------
++
++    @Test
++    public void test_canSwitchAfterIngest_falseWhenExitCodeIsNonZero() {
++        assertFalse(SuggestCreator.canSwitchAfterIngest(1));
++    }
++
++    @Test
++    public void test_canSwitchAfterIngest_trueWhenExitCodeIsZero() {
++        assertTrue(SuggestCreator.canSwitchAfterIngest(0));
++    }
++
++    @Test
++    public void test_canSwitchIndex_falseWhenExitCodeIsNonZero_evenWithAbundantWordCounts() {
++        // G3 must gate the switch on its own: however large the next generation is, a nonzero
++        // exitCode alone must be enough to block it.
++        assertFalse(SuggestCreator.canSwitchIndex(1, 100L, 1_000_000L));
++    }
++
++    // ---- T-S2 (先行版): the G1 word-count ratio guard -----------------------------------------
++
++    @Test
++    public void test_canSwitchByWordsNum_falseWhenNextGenerationIsEmpty() {
++        assertFalse(SuggestCreator.canSwitchByWordsNum(100L, 0L));
++    }
++
++    @Test
++    public void test_canSwitchByWordsNum_falseBelowTheMinimumRatio() {
++        final long previousWordsNum = 100L;
++        final long nextWordsNum = (long) (previousWordsNum * SuggestCreator.MIN_NEXT_GENERATION_RATIO) - 1;
++        assertFalse(SuggestCreator.canSwitchByWordsNum(previousWordsNum, nextWordsNum));
++    }
++
++    @Test
++    public void test_canSwitchByWordsNum_trueAtExactlyTheMinimumRatio() {
++        final long previousWordsNum = 100L;
++        final long nextWordsNum = (long) (previousWordsNum * SuggestCreator.MIN_NEXT_GENERATION_RATIO);
++        assertTrue(SuggestCreator.canSwitchByWordsNum(previousWordsNum, nextWordsNum));
++    }
++
++    @Test
++    public void test_canSwitchByWordsNum_trueWhenNextGenerationIsAtLeastAsLargeAsThePrevious() {
++        assertTrue(SuggestCreator.canSwitchByWordsNum(100L, 100L));
++        assertTrue(SuggestCreator.canSwitchByWordsNum(100L, 150L));
++    }
++
++    @Test
++    public void test_canSwitchByWordsNum_trueOnTheFirstRun_whenThePreviousGenerationIsEmpty() {
++        // "No previous generation" shows up as a count of zero (see canSwitchByWordsNum's
++        // Javadoc), and the ratio check must not apply to it: any nonzero next count is enough.
++        assertTrue(SuggestCreator.canSwitchByWordsNum(0L, 1L));
++    }
++
++    @Test
++    public void test_canSwitchByWordsNum_falseWhenBothGenerationsAreEmpty() {
++        assertFalse(SuggestCreator.canSwitchByWordsNum(0L, 0L));
++    }
++
++    // ---- structural check: the guard must precede switchIndex()/removeDisableIndices() --------
++
++    /**
++     * {@code create()} is {@code private} and calls {@code ComponentUtil.getSuggestHelper()}
++     * itself, so there is no seam a test can use to stub {@code Suggester} and observe whether
++     * {@code switchIndex()} / {@code removeDisableIndices()} actually get skipped when the guard
++     * fails (see the class Javadoc discussion in the task's design notes). This test is the
++     * mechanical substitute: it reads the source of {@code create()} and checks that the guard
++     * call appears before both {@code switchIndex()} and {@code removeDisableIndices()}, and that
++     * an early {@code return} sits between the guard and those calls.
++     */
++    @Test
++    public void test_create_guardCallPrecedesSwitchIndexAndRemoveDisableIndices_structuralCheck() throws IOException {
++        final Path sourceFile = ModulePaths.sourcePath("org/codelibs/fess/exec/SuggestCreator.java");
++        assertTrue(Files.isRegularFile(sourceFile), "SuggestCreator.java must exist: " + sourceFile);
++        final String source = Files.readString(sourceFile, StandardCharsets.UTF_8);
++
++        final int guardCallIndex = source.indexOf("if (!canSwitchIndex(");
++        final int switchIndexCallIndex = source.indexOf(".switchIndex();");
++        final int removeDisableIndicesCallIndex = source.indexOf(".removeDisableIndices();");
++
++        assertTrue(guardCallIndex >= 0, "the canSwitchIndex(...) guard call must exist");
++        assertTrue(switchIndexCallIndex > guardCallIndex, "switchIndex() must be called after the guard");
++        assertTrue(removeDisableIndicesCallIndex > guardCallIndex, "removeDisableIndices() must be called after the guard");
++
++        final String guardBlock = source.substring(guardCallIndex, switchIndexCallIndex);
++        assertTrue(guardBlock.contains("return "), "the guard block must return early when the switch is not allowed");
++    }
++
++    // ---- T-S1: the guard's control flow, observed by running create() -----------------------
++
++    /**
++     * The structural check above reads the source; these tests run {@code create()} against a
++     * {@link RecordingSuggestHelper} and a {@link StubSuggester} and look at what was actually
++     * called. That is what T-S1 asks for (0003 Sec.11.1): a rebuild that reported failures must
++     * not reach {@code switchIndex()} / {@code removeDisableIndices()}, and the old generation
++     * must therefore survive.
++     */
++    @Test
++    public void test_create_doesNotSwitchTheIndex_whenTheRebuildReportedFailures() {
++        final RecordingSuggestHelper suggestHelper = registerSuggestHelper();
++        suggestHelper.failedBadWords = 1; // G3: one skipped row is enough to set exitCode
++        suggestHelper.allWordsNum = 1000L;
++        suggestHelper.nextGenerationWordsNum = 1000L; // G1 on its own would allow the switch
++
++        final int exitCode = suggestCreator.create();
++
++        assertEquals(1, exitCode);
++        assertTrue(suggestHelper.suggester.wasCalled("createNextIndex"), "the next generation must still have been built");
++        assertFalse(suggestHelper.suggester.wasCalled("switchIndex"),
++                "switchIndex() must not run when the rebuild reported failures: " + suggestHelper.suggester.getLifecycleCalls());
++        assertFalse(suggestHelper.suggester.wasCalled("removeDisableIndices"),
++                "removeDisableIndices() must not run when the switch was skipped, or the old generation would be dropped anyway: "
++                        + suggestHelper.suggester.getLifecycleCalls());
++    }
++
++    @Test
++    public void test_create_doesNotSwitchTheIndex_whenIndexingFromDocumentsFailed() {
++        final RecordingSuggestHelper suggestHelper = registerSuggestHelper();
++        suggestHelper.fessConfig.suggestDocuments = true;
++        suggestHelper.documentIndexingFails = true; // the error callback is the only way this path fails
++        suggestHelper.allWordsNum = 1000L;
++        suggestHelper.nextGenerationWordsNum = 1000L;
++
++        final int exitCode = suggestCreator.create();
++
++        assertEquals(1, exitCode);
++        assertFalse(suggestHelper.suggester.wasCalled("switchIndex"),
++                "an asynchronous indexing failure must block the switch as well: " + suggestHelper.suggester.getLifecycleCalls());
++        assertFalse(suggestHelper.suggester.wasCalled("removeDisableIndices"), "removeDisableIndices() must not run either");
++    }
++
++    /**
++     * T-S2 as control flow: the ratio guard is checked against the count taken through the update
++     * alias ({@code getNextGenerationWordsNum()}), so an empty next generation must block the
++     * switch even though nothing failed during the rebuild.
++     */
++    @Test
++    public void test_create_doesNotSwitchTheIndex_whenTheNextGenerationIsEmpty() {
++        final RecordingSuggestHelper suggestHelper = registerSuggestHelper();
++        suggestHelper.allWordsNum = 1000L;
++        suggestHelper.nextGenerationWordsNum = 0L;
++
++        final int exitCode = suggestCreator.create();
++
++        assertEquals(1, exitCode);
++        assertFalse(suggestHelper.suggester.wasCalled("switchIndex"),
++                "an empty next generation must not be published: " + suggestHelper.suggester.getLifecycleCalls());
++        assertFalse(suggestHelper.suggester.wasCalled("removeDisableIndices"), "removeDisableIndices() must not run either");
++    }
++
++    /**
++     * The counterpart of the three tests above: without it, they would all still pass if
++     * {@code create()} could never reach the switch at all. It also pins the order of the whole
++     * sequence, which is what makes the two counts mean what the guards assume they mean: the old
++     * generation is counted before {@code createNextIndex()} moves the update alias away, and the
++     * next generation is counted after it, through the update alias (MO-27).
++     */
++    @Test
++    public void test_create_switchesTheIndex_whenTheRebuildSucceededAndTheNextGenerationIsLargeEnough() {
++        final RecordingSuggestHelper suggestHelper = registerSuggestHelper();
++        suggestHelper.allWordsNum = 1000L;
++        suggestHelper.nextGenerationWordsNum = 1000L;
++
++        final int exitCode = suggestCreator.create();
++
++        assertEquals(0, exitCode);
++        assertEquals(List.of("getAllWordsNum", "createNextIndex", "getNextGenerationWordsNum", "switchIndex", "removeDisableIndices"),
++                suggestHelper.calls);
++    }
++
++    /**
++     * The first run: there is no old generation to compare against (which shows up as a count of
++     * zero, not as a missing alias), so the ratio check must not stand in the way of publishing.
++     */
++    @Test
++    public void test_create_switchesTheIndex_onTheFirstRun_whenThereIsNoOldGeneration() {
++        final RecordingSuggestHelper suggestHelper = registerSuggestHelper();
++        suggestHelper.allWordsNum = 0L;
++        suggestHelper.nextGenerationWordsNum = 1L;
++
++        final int exitCode = suggestCreator.create();
++
++        assertEquals(0, exitCode);
++        assertTrue(suggestHelper.suggester.wasCalled("switchIndex"), "the first generation ever built must be published");
++    }
++
++    private RecordingSuggestHelper registerSuggestHelper() {
++        final RecordingSuggestHelper suggestHelper = new RecordingSuggestHelper();
++        ComponentUtil.setFessConfig(suggestHelper.fessConfig);
++        // test_app.xml does not declare suggestHelper, so ComponentUtil falls back to this
++        // registration (the component map is cleared again by UnitFessTestCase#tearDown).
++        ComponentUtil.register(suggestHelper, "suggestHelper");
++        return suggestHelper;
++    }
++
++    /**
++     * A {@link SuggestHelper} that answers with fixed counts and records the order of the calls
++     * {@code create()} makes, so the guards can be driven without a cluster. Everything it
++     * overrides is a call {@code create()} makes; nothing else is stubbed.
++     */
++    private static class RecordingSuggestHelper extends SuggestHelper {
++        private final List<String> calls = new ArrayList<>();
++        private final StubSuggester suggester = new StubSuggester("fess.suggest", calls);
++        private final GuardTestFessConfig fessConfig = new GuardTestFessConfig();
++        private long allWordsNum;
++        private long nextGenerationWordsNum;
++        private int failedBadWords;
++        private int failedElevateWords;
++        private boolean documentIndexingFails;
++
++        @Override
++        public Suggester suggester() {
++            return suggester;
++        }
++
++        @Override
++        public long getAllWordsNum() {
++            calls.add("getAllWordsNum");
++            return allWordsNum;
++        }
++
++        @Override
++        public long getNextGenerationWordsNum() {
++            calls.add("getNextGenerationWordsNum");
++            return nextGenerationWordsNum;
++        }
++
++        @Override
++        public int storeAllBadWordsForRebuild() {
++            return failedBadWords;
++        }
++
++        @Override
++        public int storeAllElevateWordsForRebuild() {
++            return failedElevateWords;
++        }
++
++        @Override
++        public void indexFromDocuments(final Consumer<Boolean> success, final Consumer<Throwable> error) {
++            if (documentIndexingFails) {
++                error.accept(new RuntimeException("indexing from documents failed"));
++            } else {
++                success.accept(Boolean.TRUE);
++            }
++        }
++
++        @Override
++        public void storeSearchLog() {
++            // no search log store in a unit test
++        }
++    }
++
++    /**
++     * Keeps {@code create()} on the search-log path by default: the document path would otherwise
++     * be entered as well, and only the tests that care about it turn it on.
++     */
++    private static class GuardTestFessConfig extends FessConfig.SimpleImpl {
++        private static final long serialVersionUID = 1L;
++
++        private boolean suggestDocuments = false;
++
++        @Override
++        public boolean isSuggestDocuments() {
++            return suggestDocuments;
++        }
++
++        @Override
++        public boolean isSuggestSearchLog() {
++            return true;
++        }
++    }
++
+     // Helper method to setup minimal mock components
+     private void setupMockComponents() {
+         try {

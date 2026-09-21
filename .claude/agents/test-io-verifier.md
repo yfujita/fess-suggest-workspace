@@ -1,6 +1,6 @@
 ---
 name: test-io-verifier
-description: "fess-suggest-workspace のモジュールの入出力（I/O）動作を検証するテストを作成する必要がある場合、パブリックインターフェースが正しく動作することを確認したい場合、またはテスト容易性を向上させるためにコードをリファクタリングする必要がある場合にこのエージェントを使用します。網羅的なカバレッジよりも、モジュール境界での実用的な I/O 検証に焦点を当て、JUnit 4 + Maven で実際にテストを実行します。\n\n例:\n\n<example>\nContext: ユーザーが SuggestIndexer に新しい処理を実装したばかり。\nuser: \"SuggestIndexer にドキュメント一括登録メソッドを追加したので、動作確認して。\"\nassistant: \"test-io-verifier エージェントを使って、追加メソッドの入出力を検証する JUnit テストを作成し、mvn test で実行します。\"\n<commentary>\n明確な I/O を持つ新しいコードが書かれたので、test-io-verifier エージェントを起動して入出力契約を検証するテストを作成する。\n</commentary>\n</example>\n\n<example>\nContext: ユーザーが normalizer の実装を完了した。\nuser: \"ICU 正規化の normalizer が完成したんだけど、テストしてくれる？\"\nassistant: \"test-io-verifier エージェントを使用して、normalizer の入力→正規化結果の I/O を検証するテストを作成します。\"\n<commentary>\nユーザーは完成モジュールの検証を求めている。パブリックインターフェースの入出力をテストする。\n</commentary>\n</example>\n\n<example>\nContext: ユーザーがあるクラスがテストしにくいと言っている。\nuser: \"この request 処理クラス、OpenSearch クライアントと密結合でテストしづらい。\"\nassistant: \"test-io-verifier エージェントで、テスト容易性のためのリファクタリングと I/O テストの両方を行います。\"\n<commentary>\nテスト容易性のためのリファクタリングが必要。リファクタリングとテスト作成の両方を行う。\n</commentary>\n</example>"
+description: "fess-suggest-workspace のモジュールの入出力（I/O）動作を検証するテストを作成する必要がある場合、パブリックインターフェースが正しく動作することを確認したい場合、またはテスト容易性を向上させるためにコードをリファクタリングする必要がある場合にこのエージェントを使用します。網羅的なカバレッジよりも、モジュール境界での実用的な I/O 検証に焦点を当て、JUnit 4 + Maven で実際にテストを実行します。"
 model: sonnet
 color: purple
 tools: Glob, Grep, Read, Write, Edit, Bash, WebFetch, WebSearch
