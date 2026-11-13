@@ -1,7 +1,7 @@
 ---
 name: test-reviewer
 description: "fess-suggest-workspace のテストをテスト観点でレビューする必要がある場合にこのエージェントを使用します。変更された入出力契約に対するテストの過不足、テストケース設計（境界値・異常系・失敗経路）の妥当性、アサーションの厳密さ、テストの独立性・再現性・実行時間、テストコード自体の保守性が対象です。実装コードの欠陥レビューは code-reviewer、タスクのプロセス・成果物のレビューは task-reviewer に委ねます。"
-model: opus
+model: sonnet
 color: yellow
 tools: Glob, Grep, Read, Bash, WebFetch, WebSearch
 ---

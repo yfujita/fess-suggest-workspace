@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: "fess-suggest-workspace の実装コードをレビューする必要がある場合にこのエージェントを使用します。実装完了後の品質確認、プッシュ前の差分確認、バグ・後方互換性・例外処理・リソース管理・性能・可読性に関する指摘が対象です。明示的な指定がなければ、コードベース全体ではなく直近の変更または指定されたモジュールをレビューします。テスト観点のレビューは test-reviewer、タスクのプロセス・成果物のレビューは task-reviewer に委ねます。"
-model: opus
+model: sonnet
 color: orange
 tools: Glob, Grep, Read, Bash, WebFetch, WebSearch
 ---

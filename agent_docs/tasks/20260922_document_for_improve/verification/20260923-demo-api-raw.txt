@@ -1,0 +1,303 @@
+### Z04 lower: q=fess
+{"query_time":1,"record_count":58,"page_size":5,"data":[{"text":"fess","labels":["fess","dbflute"]},{"text":"fess_config.properties","labels":["fess"]},{"text":"fess01","labels":["fess"]},{"text":"fess.codelibs.org","labels":["fess"]},{"text":"fess n2sm","labels":["fess"]}]}
+[http 200]
+
+### Z04 Cap:   q=Fess
+{"query_time":1,"record_count":58,"page_size":5,"data":[{"text":"fess","labels":["fess","dbflute"]},{"text":"fess_config.properties","labels":["fess"]},{"text":"fess01","labels":["fess"]},{"text":"fess.codelibs.org","labels":["fess"]},{"text":"fess n2sm","labels":["fess"]}]}
+[http 200]
+
+### Z04 UPPER: q=FESS
+{"query_time":1,"record_count":58,"page_size":5,"data":[{"text":"fess","labels":["fess","dbflute"]},{"text":"fess_config.properties","labels":["fess"]},{"text":"fess01","labels":["fess"]},{"text":"fess.codelibs.org","labels":["fess"]},{"text":"fess n2sm","labels":["fess"]}]}
+[http 200]
+
+### Z04 zenkaku: q=ｆｅｓｓ
+{"query_time":1,"record_count":58,"page_size":5,"data":[{"text":"fess","labels":["fess","dbflute"]},{"text":"fess_config.properties","labels":["fess"]},{"text":"fess01","labels":["fess"]},{"text":"fess.codelibs.org","labels":["fess"]},{"text":"fess n2sm","labels":["fess"]}]}
+[http 200]
+
+### Z01 kanji: q=検索
+{"query_time":2,"record_count":4,"page_size":4,"data":[{"text":"\u691C\u7D22","labels":["buzzfeed","dbflute","fess"]},{"text":"\u691C\u7D22\u7D50\u679C","labels":["dbflute","fess"]},{"text":"\u691C\u7D22\u6F0F\u308C","labels":["fess"]},{"text":"\u30B1\u30F3\u30B5\u30AF","labels":["fess"]}]}
+[http 200]
+
+### Z01 hira:  q=けんさく
+{"query_time":1,"record_count":4,"page_size":4,"data":[{"text":"\u691C\u7D22","labels":["buzzfeed","dbflute","fess"]},{"text":"\u691C\u7D22\u7D50\u679C","labels":["dbflute","fess"]},{"text":"\u30B1\u30F3\u30B5\u30AF","labels":["fess"]},{"text":"\u691C\u7D22\u6F0F\u308C","labels":["fess"]}]}
+[http 200]
+
+### Z01 kana:  q=ケンサク
+{"query_time":0,"record_count":4,"page_size":4,"data":[{"text":"\u30B1\u30F3\u30B5\u30AF","labels":["fess"]},{"text":"\u691C\u7D22","labels":["buzzfeed","dbflute","fess"]},{"text":"\u691C\u7D22\u7D50\u679C","labels":["dbflute","fess"]},{"text":"\u691C\u7D22\u6F0F\u308C","labels":["fess"]}]}
+[http 200]
+
+### Z01 romaji:q=kensaku
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### Z01 romaji:q=kensak
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### Z01 hatsuon: q=senmon
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### Z01 hatsuon: q=sennmon
+{"query_time":1,"record_count":1,"page_size":1,"data":[{"text":"\u5C02\u9580","labels":["buzzfeed","fess"]}]}
+[http 200]
+
+### Z01 chouon: q=koohii
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### Z01 chouon: q=kohi
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### Z01 sokuon: q=kensakku
+{"response":{"status":9,"message":"Server is busy. Please retry after 60 seconds.","retry_after":60}}
+[http 429]
+
+### Z01 nihon:  q=nihon
+{"response":{"status":9,"message":"Server is busy. Please retry after 60 seconds.","retry_after":60}}
+[http 429]
+
+### Z01 gijutsu:q=gijutsu
+{"response":{"status":9,"message":"Server is busy. Please retry after 60 seconds.","retry_after":60}}
+[http 429]
+
+### W02 infix: q=ess
+{"response":{"status":9,"message":"Server is busy. Please retry after 60 seconds.","retry_after":60}}
+[http 429]
+
+### W02 infix: q=lasticsearch
+{"response":{"status":9,"message":"Server is busy. Please retry after 60 seconds.","retry_after":60}}
+[http 429]
+
+### W01 typo:  q=fesss
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### W01 typo:  q=elasitc
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### Z02 multi: q=fess 検索
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### Z02 multi: q=full text
+{"query_time":1,"record_count":0,"page_size":0}
+[http 200]
+
+### Z02 multi: q=fess conf
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### Y04 lang none: q=search
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### Y04 lang=ja:   q=search
+{"query_time":1,"record_count":0,"page_size":0}
+[http 200]
+
+### Y04 lang=en:   q=search
+{"query_time":1,"record_count":0,"page_size":0}
+[http 200]
+
+### Y04 lang=zz:   q=search
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### field=title:  q=fess
+{"query_time":0,"record_count":1,"page_size":1,"data":[{"text":"fess","labels":["fess","dbflute"]}]}
+[http 200]
+
+### field=content:q=fess
+{"query_time":1,"record_count":56,"page_size":5,"data":[{"text":"fess","labels":["fess","dbflute"]},{"text":"fess_config.properties","labels":["fess"]},{"text":"fess01","labels":["fess"]},{"text":"fess.codelibs.org","labels":["fess"]},{"text":"fess_indices","labels":["fess"]}]}
+[http 200]
+
+### field=zzz:    q=fess
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### label=lucene: q=fess
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### label=zzz:    q=fess
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### num=0:   q=fe
+{"query_time":1,"record_count":165,"page_size":0}
+[http 200]
+
+### num=-1:  q=fe
+{"query_time":1,"record_count":165,"page_size":10,"data":[{"text":"fess","labels":["fess","dbflute"]},{"text":"fess_config.properties","labels":["fess"]},{"text":"feld","labels":["fess"]},{"text":"felder","labels":["fess"]},{"text":"fess01","labels":["fess"]},{"text":"few","labels":["fess","elasticsearch","buzzfeed"]},{"text":"fehler","labels":["fess"]},{"text":"fehlerbehebung","labels":["fess"]},{"text":"fess.codelibs.org","labels":["fess"]},{"text":"fetch","labels":["fess","elasticsearch","dbflute"]}]}
+[http 200]
+
+### num=abc: q=fe
+{"query_time":2,"record_count":165,"page_size":10,"data":[{"text":"fess","labels":["fess","dbflute"]},{"text":"fess_config.properties","labels":["fess"]},{"text":"feld","labels":["fess"]},{"text":"felder","labels":["fess"]},{"text":"fess01","labels":["fess"]},{"text":"few","labels":["fess","elasticsearch","buzzfeed"]},{"text":"fehler","labels":["fess"]},{"text":"fehlerbehebung","labels":["fess"]},{"text":"fess.codelibs.org","labels":["fess"]},{"text":"fetch","labels":["fess","elasticsearch","dbflute"]}]}
+[http 200]
+
+### num=5000:q=fe
+{"query_time":4,"record_count":165,"page_size":165,"data":[{"text":"fess","labels":["fess","dbflute"]},{"text":"fess_config.properties","labels":["fess"]},{"text":"feld","labels":["fess"]},{"text":"felder","labels":["fess"]},{"text":"fess01","labels":["fess"]},{"text":"few","labels":["fess","elasticsearch","buzzfeed"]},{"text":"fehler","labels":["fess"]},{"text":"fehlerbehebung","labels":["fess"]},{"text":"fess.codelibs.org","labels":["fess"]},{"text":"fetch","labels":["fess","elasticsearch","dbflute"]},{"text":"fess n2sm","labels":["fess"]},{"text":"fewer","labels":["elasticsearch"]},{"text":"fess_indices","labels":["fess"]},{"text":"fess.log","labels":["fess"]},{"text":"feel","labels":["elasticsearch","buzzfeed","fess"]},{"text":"fess_log","labels":["fess"]},{"text":"fess\u2019s","labels":["fess"]},{"text":"fess.service","labels":["fess"]},{"text":"fess_user","labels":["fess"]},{"text":"fess.in.sh","labels":["fess"]},{"text":"fess.json","labels":["fess"]},{"text":"fess_plugins","labels":["fess"]},{"text":"fessconfig","labels":["fess"]},{"text":"fetching","labels":["fess","elasticsearch"]},{"text":"festlegen","labels":["fess"]},{"text":"fess_port","labels":["fess"]},{"text":"fess_config.bulk","labels":["fess"]},{"text":"fest","labels":["fess"]},{"text":"feldern","labels":["fess"]},{"text":"feeds","labels":["elasticsearch","buzzfeed"]},{"text":"fess_home","labels":["fess"]},{"text":"fes","labels":["fess"]},{"text":"fetchsize","labels":["dbflute"]},{"text":"feu","labels":["fess"]},{"text":"fetchfirst","labels":["dbflute"]},{"text":"fess_config","labels":["fess"]},{"text":"feldbeschreibungen","labels":["fess"]},{"text":"fen\u00EAtre","labels":["fess"]},{"text":"fess_log.click_log","labels":["fess"]},{"text":"fetchcursor","labels":["dbflute"]},{"text":"fess_user.bulk","labels":["fess"]},{"text":"fess_min_mem","labels":["fess"]},{"text":"feed","labels":["elasticsearch","buzzfeed"]},{"text":"fees","labels":["elasticsearch"]},{"text":"febrero","labels":["fess","buzzfeed"]},{"text":"fehl","labels":["fess"]},{"text":"fess_non_proxy_hosts","labels":["fess"]},{"text":"fess_proxy_host","labels":["fess"]},{"text":"fess_env_","labels":["fess"]},{"text":"fess_url","labels":["fess"]},{"text":"fehlermodell","labels":["fess"]},{"text":"feels","labels":["elasticsearch","fess"]},{"text":"fess_env.properties","labels":["fess"]},{"text":"fehlermeldungen","labels":["fess"]},{"text":"fetches","labels":["elasticsearch"]},{"text":"feet","labels":["elasticsearch","buzzfeed"]},{"text":"fessprops","labels":["fess"]},{"text":"fess.git","labels":["fess"]},{"text":"fell","labels":["elasticsearch"]},{"text":"fess_log.ndjson","labels":["fess"]},{"text":"festgelegt","labels":["fess"]},{"text":"fess_proxy_port","labels":["fess"]},{"text":"fehlenden","labels":["fess"]},{"text":"fess_llm","labels":["fess"]},{"text":"fenster","labels":["fess"]},{"text":"fellow","labels":["elasticsearch"]},{"text":"fed","labels":["elasticsearch"]},{"text":"fehlern","labels":["fess"]},{"text":"fehlersuche","labels":["fess"]},{"text":"feldsuche","labels":["fess"]},{"text":"feldspezifische","labels":["fess"]},{"text":"fessobj","labels":["fess"]},{"text":"fessobj.title","labels":["fess"]},{"text":"fessobj.contents","labels":["fess"]},{"text":"fescriptor","labels":["fess"]},{"text":"fess_pid","labels":["fess"]},{"text":"festgelegten","labels":["fess"]},{"text":"fetched","labels":["elasticsearch","fess"]},{"text":"fehlermeldung","labels":["fess"]},{"text":"felds","labels":["fess"]},{"text":"festzulegen","labels":["fess"]},{"text":"fess_log_level","labels":["fess"]},{"text":"fenstergroesse","labels":["fess"]},{"text":"fehlschl\u00E4gt","labels":["fess"]},{"text":"fess_","labels":["fess"]},{"text":"fehlercodes","labels":["fess"]},{"text":"felix","labels":["elasticsearch"]},{"text":"fess.script","labels":["fess"]},{"text":"fee","labels":["dbflute","elasticsearch"]},{"text":"felt","labels":["elasticsearch","buzzfeed"]},{"text":"fenetre","labels":["fess"]},{"text":"fess:fess","labels":["fess"]},{"text":"fess_config.web_config","labels":["fess"]},{"text":"fess_config.scheduled_job","labels":["fess"]},{"text":"fess_user.user","labels":["fess"]},{"text":"fess_user.role","labels":["fess"]},{"text":"fess_user.group","labels":["fess"]},{"text":"fess_log.user_info","labels":["fess"]},{"text":"fetch_size","labels":["fess"]},{"text":"fess:url","labels":["fess"]},{"text":"fess:content_type","labels":["fess"]},{"text":"fess.xml","labels":["fess"]},{"text":"fess_config.xml","labels":["fess"]},{"text":"festes","labels":["fess"]},{"text":"fehlerbehebungen","labels":["fess"]},{"text":"fehlende","labels":["fess"]},{"text":"fehlen","labels":["fess"]},{"text":"fehlender","labels":["fess"]},{"text":"festgelegte","labels":["fess"]},{"text":"fess.yyyymmdd","labels":["fess"]},{"text":"fess.suggest.yyyymmdd","labels":["fess"]},{"text":"fess_suggest","labels":["fess"]},{"text":"feb","labels":["elasticsearch"]},{"text":"fesen","labels":["fess"]},{"text":"ferns","labels":["elasticsearch"]},{"text":"fenstergr\u00F6\u00DFe","labels":["fess"]},{"text":"fehlt","labels":["fess"]},{"text":"fermez","labels":["fess"]},{"text":"fehlertypen","labels":["fess"]},{"text":"fehlertyp","labels":["fess"]},{"text":"fehlergrund","labels":["fess"]},{"text":"fensterperiode","labels":["fess"]},{"text":"fess.com","labels":["fess"]},{"text":"fermer","labels":["fess"]},{"text":"ferm\u00E9s","labels":["fess"]},{"text":"feldbeschriftung","labels":["fess"]},{"text":"fess.yymmdd","labels":["fess"]},{"text":"feuilles","labels":["fess"]},{"text":"feuille","labels":["fess"]},{"text":"fessboot","labels":["fess"]},{"text":"fehlerverfolgung","labels":["fess"]},{"text":"fehlerbericht","labels":["fess"]},{"text":"fend","labels":["elasticsearch"]},{"text":"fertige","labels":["fess"]},{"text":"ferm\u00E9es","labels":["fess"]},{"text":"fess.version","labels":["fess"]},{"text":"fehlerbeschreibung","labels":["fess"]},{"text":"feldwerten","labels":["fess"]},{"text":"feldes","labels":["fess"]},{"text":"fehlercode","labels":["fess"]},{"text":"fehlermeldungstext","labels":["fess"]},{"text":"fen\u00EAtres","labels":["fess"]},{"text":"fehlfunktion","labels":["fess"]},{"text":"festen","labels":["fess"]},{"text":"feldwert","labels":["fess"]},{"text":"feldwerte","labels":["fess"]},{"text":"fehlendes","labels":["fess"]},{"text":"fehlerbeispiel","labels":["fess"]},{"text":"feront","labels":["fess"]},{"text":"fever","labels":["elasticsearch"]},{"text":"feliz","labels":["buzzfeed"]},{"text":"fehlerprotokoll","labels":["fess"]},{"text":"feste","labels":["fess"]},{"text":"fertigstellung","labels":["fess"]},{"text":"fess\/\\","labels":[]},{"text":"\u30D5\u30A7\u30C3\u30C1","labels":["dbflute","fess"]},{"text":"\u30D5\u30A7\u30FC\u30BA","labels":["dbflute","fess"]},{"text":"\u30D5\u30A7\u30B9","labels":["buzzfeed","fess"]},{"text":"\u30D5\u30A7\u30B9\u30C6\u30A3\u30D0\u30EB","labels":["buzzfeed"]},{"text":"\u30D5\u30A7\u30A4\u30EB\u30AA\u30FC\u30D0\u30FC","labels":["fess"]},{"text":"\u30D5\u30A7\u30A2","labels":["buzzfeed"]},{"text":"\u30D5\u30A7\u30EA\u30B7\u30A2","labels":["buzzfeed"]},{"text":"\u30D5\u30A7\u30EB\u30C8","labels":["buzzfeed"]},{"text":"\u30D5\u30A7\u30A4\u30B9","labels":["buzzfeed"]},{"text":"\u30D5\u30A7\u30B9\u30BF","labels":["buzzfeed"]}]}
+[http 200]
+
+### q empty
+{"query_time":4,"record_count":10000,"page_size":5,"data":[{"text":"g","labels":["buzzfeed","dbflute","fess","elasticsearch"]},{"text":"db","labels":["dbflute","fess","elasticsearch","buzzfeed"]},{"text":"text","labels":["fess","dbflute","elasticsearch","buzzfeed"]},{"text":"\u691C\u7D22","labels":["buzzfeed","dbflute","fess"]},{"text":"you","labels":["elasticsearch","buzzfeed","fess","dbflute"]}]}
+[http 200]
+
+### q missing
+{"error_code:":"6198b2e3-b872-4310-8a97-276c6b1b0900"}
+[http 500]
+
+### q=* wildcard
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### q=? wildcard
+{"query_time":0,"record_count":7,"page_size":5,"data":[{"text":"\uFF1F)","labels":["dbflute"]},{"text":"\uFF1F...","labels":["dbflute"]},{"text":"\uFF1F.........","labels":["dbflute"]},{"text":"\uFF1F\uFF5E\u300F\uFF08","labels":["buzzfeed"]},{"text":"\uFF1F\u21D2\u300C","labels":["buzzfeed"]}]}
+[http 200]
+
+### q=  (space only)
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### q=a (1char)
+{"query_time":1,"record_count":390,"page_size":5,"data":[{"text":"\u30A2\u30D7\u30EA","labels":["dbflute","buzzfeed","fess"]},{"text":"\u611B","labels":["buzzfeed"]},{"text":"\u30A2\u30C3\u30D7","labels":["buzzfeed","dbflute","fess"]},{"text":"\u30A2\u30AF\u30BB\u30B9","labels":["dbflute","fess"]},{"text":"\u30A2\u30AB\u30A6\u30F3\u30C8","labels":["buzzfeed","dbflute","fess"]}]}
+[http 200]
+
+### popular-words
+{"record_count":10,"data":["\u691C\u7D22",".pdf","google","\u516C\u958B","excel","drive","db","text","\u30A2\u30D7\u30EA","\u6A5F\u80FD"]}
+[http 200]
+
+### popular-words seed=1
+{"record_count":10,"data":["excel","\u5236\u5FA1","test","drive","g","you","\u516C\u958B","s","demo","musk"]}
+[http 200]
+
+### popular-words seed=2
+{"record_count":10,"data":["\u5236\u5FA1","pdf","html","swift","\u691C\u7D22","document","deep","excel","demo","keyword"]}
+[http 200]
+
+### popular-words label=fess
+{"record_count":10,"data":["\u691C\u7D22",".pdf","google","\u516C\u958B","excel","drive","db","text","\u30A2\u30D7\u30EA","\u6A5F\u80FD"]}
+[http 200]
+
+DONE
+### Z01 sokuon: q=kensakku
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### Z01 nihon:  q=nihon
+{"query_time":0,"record_count":4,"page_size":4,"data":[{"text":"\u65E5\u672C\u8A9E","labels":["buzzfeed","fess","dbflute"]},{"text":"\u65E5\u672C\u30C6\u30EC\u30D3","labels":["buzzfeed"]},{"text":"\u30CB\u30DB\u30F3\u30A6\u30CA\u30AE","labels":["buzzfeed"]},{"text":"\u65E5\u672C\u30B3\u30ED\u30E0\u30D3\u30A2","labels":["buzzfeed"]}]}
+[http 200]
+
+### Z01 gijutsu:q=gijutsu
+{"response":{"status":9,"message":"Server is busy. Please retry after 60 seconds.","retry_after":60}}
+[http 429]
+
+### W02 infix:  q=ess
+{"response":{"status":9,"message":"Server is busy. Please retry after 60 seconds.","retry_after":60}}
+[http 429]
+
+### W02 infix:  q=lasticsearch
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### Z02 q=fess n2sm
+{"query_time":0,"record_count":1,"page_size":1,"data":[{"text":"fess n2sm","labels":["fess"]}]}
+[http 200]
+
+### Z02 q=fess n
+{"query_time":1,"record_count":1,"page_size":1,"data":[{"text":"fess n2sm","labels":["fess"]}]}
+[http 200]
+
+### q=sear
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### q=searc
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### q=search
+{"query_time":0,"record_count":0,"page_size":0}
+[http 200]
+
+### q=searching
+{"query_time":1,"record_count":0,"page_size":0}
+[http 200]
+
+### Z04 q=けんさ
+{"query_time":1,"record_count":6,"page_size":5,"data":[{"text":"\u691C\u7D22","labels":["buzzfeed","dbflute","fess"]},{"text":"\u691C\u7D22\u7D50\u679C","labels":["dbflute","fess"]},{"text":"\u691C\u67FB","labels":["buzzfeed","dbflute"]},{"text":"\u30B1\u30F3\u30B5\u30AF","labels":["fess"]},{"text":"\u691C\u7D22\u6F0F\u308C","labels":["fess"]}]}
+[http 200]
+
+### Z04 q=ケンサ
+{"query_time":1,"record_count":6,"page_size":5,"data":[{"text":"\u30B1\u30F3\u30B5\u30AF","labels":["fess"]},{"text":"\u691C\u7D22","labels":["buzzfeed","dbflute","fess"]},{"text":"\u691C\u7D22\u7D50\u679C","labels":["dbflute","fess"]},{"text":"\u691C\u67FB","labels":["buzzfeed","dbflute"]},{"text":"\u691C\u7D22\u6F0F\u308C","labels":["fess"]}]}
+[http 200]
+
+### Z04 q=ケンサク結果?
+{"query_time":0,"record_count":1,"page_size":1,"data":[{"text":"\u691C\u7D22\u7D50\u679C","labels":["dbflute","fess"]}]}
+[http 200]
+
+### label=dbflute q=fess
+{"query_time":0,"record_count":1,"page_size":1,"data":[{"text":"fess","labels":["fess","dbflute"]}]}
+[http 200]
+
+### popular label=buzzfeed
+{"record_count":10,"data":["\u691C\u7D22","google","\u516C\u958B","\u30DD\u30A4\u30F3\u30C8","excel","drive","text","db","\u65E5\u672C","\u30A2\u30D7\u30EA"]}
+[http 200]
+
+### popular label=elasticsearch
+{"record_count":10,"data":[".pdf","google","cisco","excel","drive","c","text","db","store","word"]}
+[http 200]
+
+### popular label=zzz
+{"record_count":0,"data":[]}
+[http 200]
+
+### popular field=title
+{"record_count":10,"data":["\u691C\u7D22","google","\u516C\u958B","drive","c","url","text","db","\u65E5\u672C","store"]}
+[http 200]
+
+### q=。
+{"query_time":0,"record_count":7,"page_size":5,"data":[{"text":"\u3002(","labels":["dbflute"]},{"text":"\u3002{","labels":["dbflute"]},{"text":"\u3002$$","labels":["dbflute"]},{"text":"\u3002...","labels":["dbflute"]},{"text":"\u3002[\uFF08","labels":["fess"]}]}
+[http 200]
+
+### q=)
+{"query_time":1,"record_count":47,"page_size":5,"data":[{"text":")","labels":["buzzfeed","dbflute","fess"]},{"text":");","labels":["dbflute","fess"]},{"text":"){","labels":["dbflute","fess"]},{"text":")\u3002","labels":["dbflute","fess"]},{"text":")\u3001","labels":["dbflute"]}]}
+[http 200]
+
+DONE
+### kennsaku (検索=けんさく→kennsakuか)
+{"query_time":0,"record_count":4,"page_size":4,"data":[{"text":"\u691C\u7D22","labels":["buzzfeed","dbflute","fess"]},{"text":"\u691C\u7D22\u7D50\u679C","labels":["dbflute","fess"]},{"text":"\u30B1\u30F3\u30B5\u30AF","labels":["fess"]},{"text":"\u691C\u7D22\u6F0F\u308C","labels":["fess"]}]}
+[http 200]
+
+### nihonn (日本=にほん→nihonn)
+{"query_time":0,"record_count":4,"page_size":4,"data":[{"text":"\u65E5\u672C\u8A9E","labels":["buzzfeed","fess","dbflute"]},{"text":"\u65E5\u672C\u30C6\u30EC\u30D3","labels":["buzzfeed"]},{"text":"\u30CB\u30DB\u30F3\u30A6\u30CA\u30AE","labels":["buzzfeed"]},{"text":"\u65E5\u672C\u30B3\u30ED\u30E0\u30D3\u30A2","labels":["buzzfeed"]}]}
+[http 200]
+
+### sennmonn (専門=せんもん→sennmonn)
+{"query_time":0,"record_count":1,"page_size":1,"data":[{"text":"\u5C02\u9580","labels":["buzzfeed","fess"]}]}
+[http 200]
+
+### gijutsu (技術=ぎじゅつ、ンなし)
+{"query_time":0,"record_count":1,"page_size":1,"data":[{"text":"\u6280\u8853","labels":["fess","buzzfeed","dbflute"]}]}
+[http 200]
+
+### store
+{"response":{"status":9,"message":"Server is busy. Please retry after 60 seconds.","retry_after":60}}
+[http 429]
+
+### swift
+{"query_time":1,"record_count":6,"page_size":5,"data":[{"text":"swift","labels":["elasticsearch","buzzfeed","dbflute","fess"]},{"text":"swiftly","labels":["elasticsearch"]},{"text":"swiftype","labels":["elasticsearch"]},{"text":"swift_2024","labels":["elasticsearch"]},{"text":"swift\u2019s","labels":["elasticsearch"]}]}
+[http 200]
+
+### se
+{"query_time":1,"record_count":531,"page_size":5,"data":[{"text":"security","labels":["elasticsearch","fess","dbflute","buzzfeed"]},{"text":"service","labels":["fess","elasticsearch","dbflute","buzzfeed"]},{"text":"settings","labels":["fess","elasticsearch","dbflute","buzzfeed"]},{"text":"setting","labels":["dbflute","fess","elasticsearch","buzzfeed"]},{"text":"\u5236\u5FA1","labels":["dbflute","fess"]}]}
+[http 200]
+
+### ess
+{"query_time":0,"record_count":4,"page_size":4,"data":[{"text":"essence","labels":["elasticsearch"]},{"text":"essentielle","labels":["fess"]},{"text":"essr","labels":["dbflute"]},{"text":"essentielles","labels":["fess"]}]}
+[http 200]
+
+DONE

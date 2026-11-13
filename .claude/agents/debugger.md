@@ -1,7 +1,7 @@
 ---
 name: debugger
 description: "fess-suggest-workspace で発生した不具合を、実際に手を動かして再現・切り分け・根本原因の特定まで行う必要がある場合にこのエージェントを使用します。テスト失敗、例外・スタックトレース、期待と異なるサジェスト結果、不安定（flaky）なテスト、性能劣化などが対象です。仮説を実験で検証し、根本原因を file_path:line で特定して報告します。修正の実装は行わず code-implementer に引き継ぎます。"
-model: opus
+model: sonnet
 color: red
 tools: Glob, Grep, Read, Write, Edit, Bash, WebFetch, WebSearch
 ---

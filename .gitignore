@@ -1,2 +1,4 @@
 modules/
 .DS_Store
+opensearch/data/
+opensearch/dictionary/
