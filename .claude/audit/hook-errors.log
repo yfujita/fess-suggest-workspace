@@ -1,0 +1,14 @@
+2026-11-11T06:17:15.253461+00:00 Traceback (most recent call last):
+  File "/Users/yfujita/fuji/private/github/loreley/.claude/hooks/audit.py", line 198, in <module>
+    main()
+    ~~~~^^
+  File "/Users/yfujita/fuji/private/github/loreley/.claude/hooks/audit.py", line 186, in main
+    task = resolve_task(event, root)
+  File "/Users/yfujita/fuji/private/github/loreley/.claude/hooks/audit.py", line 114, in resolve_task
+    detected, can_override = detect_task(event, root, task_names)
+                             ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yfujita/fuji/private/github/loreley/.claude/hooks/audit.py", line 90, in detect_task
+    file_path = tool_input.get("file_path")
+                ^^^^^^^^^^^^^^
+AttributeError: 'str' object has no attribute 'get'
+
