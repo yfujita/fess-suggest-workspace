@@ -183,6 +183,7 @@
   },
   "active": "f9fa74f1cbdaa719",
   "lastOpenFiles": [
+    "agent_tasks/20261113_improve_suggest_query/0009-address-external-review.md",
     "agent_tasks/20261113_improve_suggest_query/0008-design-existence-guarantee.md",
     "agent_tasks/20261113_improve_suggest_query/0007-task-completion.md",
     "agent_tasks/20261113_improve_suggest_query/0006-design-review.md",
@@ -218,7 +219,6 @@
     "agent_tasks/archive/20260822_implementation/docs/for_human/04-用語ミニ辞典.md",
     "agent_tasks/archive/20260822_implementation/docs/for_human/03-どうやって入れ替えるか.md",
     "agent_tasks/archive/20260822_implementation/docs/for_human/02-新しい設計のかたち.md",
-    "agent_tasks/archive/20260822_implementation/docs/for_human/01-なぜ変えるのか.md",
     "modules/fess-suggest/target/reports/apidocs/resources/x.png",
     "modules/fess-suggest/target/reports/apidocs/resources/glass.png",
     "modules/fess-suggest/target/reports/apidocs/link.svg",
